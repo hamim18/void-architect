@@ -1,31 +1,22 @@
 // Void Architect — plugins/player.rs
-// Player controller: WASD movement, mouse facing, velocity damping.
-// Physics via bevy_rapier2d. [S0-04]
+// Player controller: LMB click-to-move, mouse facing. [S0-04]
+//
+// Physics: KinematicVelocityBased — kita set velocity langsung,
+// rapier gerakkan entity, tapi rotation TIDAK di-override rapier
+// (kinematic body tidak apply torque/gravity). Ini yang benar untuk
+// top-down game di mana rotation dikontrol manual via mouse facing.
 
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use bevy_rapier2d::prelude::*;
 
-// Import components tapi exclude Velocity kita — di plugin ini yang dipakai rapier Velocity
-use crate::components::{
-    AbilityCooldowns, Health, Player, Position,
-};
+use crate::components::{Health, Player, Position};
 use crate::GameState;
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const PLAYER_SPEED: f32 = 180.0;         // px/s
-const PLAYER_DAMPING: f32 = 10.0;        // linear damping
+const PLAYER_SPEED: f32 = 180.0;
 const PLAYER_COLLIDER_RADIUS: f32 = 10.0;
-
-// Warna player (MVP geometric: cyan triangle)
+const ARRIVAL_THRESHOLD: f32 = 6.0;
 const COLOR_PLAYER: Color = Color::srgb(0.0, 0.85, 0.85);
-
-// ---------------------------------------------------------------------------
-// Plugin
-// ---------------------------------------------------------------------------
 
 pub struct PlayerPlugin;
 
@@ -33,10 +24,10 @@ impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0))
-            // Debug colliders: aktifkan saat development, matikan di release
-            // .add_plugins(RapierDebugRenderPlugin::default())
+            .insert_resource(MoveTarget::default())
             .add_systems(OnEnter(GameState::InRun), spawn_player)
             .add_systems(Update, (
+                click_to_move_input,
                 player_movement,
                 player_mouse_facing,
                 cooldown_tick,
@@ -44,41 +35,29 @@ impl Plugin for PlayerPlugin {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Marker
-// ---------------------------------------------------------------------------
-
-/// Marker agar sistem lain bisa query player entity.
 #[derive(Component)]
 pub struct PlayerMarker;
 
-// ---------------------------------------------------------------------------
-// Spawn
-// ---------------------------------------------------------------------------
+#[derive(Resource, Default)]
+pub struct MoveTarget(pub Option<Vec2>);
 
-/// Spawn player entity di tengah map (dekat Void Core).
 fn spawn_player(mut commands: Commands) {
     commands.spawn((
-        // Visual — MVP: cyan triangle (disimulasi sebagai rotated rectangle)
         SpriteBundle {
             sprite: Sprite {
                 color: COLOR_PLAYER,
-                custom_size: Some(Vec2::new(14.0, 20.0)), // lebar x tinggi
+                custom_size: Some(Vec2::new(14.0, 20.0)),
                 ..default()
             },
-            transform: Transform::from_xyz(0.0, 60.0, 2.0), // sedikit di atas Void Core
+            transform: Transform::from_xyz(0.0, 60.0, 2.0),
             ..default()
         },
-        // Physics
-        RigidBody::Dynamic,
+        // KinematicVelocityBased: kita kontrol velocity secara langsung.
+        // Rapier gerakkan posisi tapi TIDAK override rotation — aman untuk
+        // manual mouse facing.
+        RigidBody::KinematicVelocityBased,
         bevy_rapier2d::prelude::Velocity::default(),
         Collider::ball(PLAYER_COLLIDER_RADIUS),
-        LockedAxes::ROTATION_LOCKED, // player tidak boleh rotate secara physics
-        Damping {
-            linear_damping: PLAYER_DAMPING,
-            angular_damping: 0.0,
-        },
-        // Game components
         PlayerMarker,
         Player::default(),
         Health::new(100.0),
@@ -87,41 +66,60 @@ fn spawn_player(mut commands: Commands) {
 }
 
 // ---------------------------------------------------------------------------
-// Movement System (S0-04)
+// LMB Click → set move target
 // ---------------------------------------------------------------------------
 
-/// Baca input WASD, set velocity pada rapier RigidBody.
-fn player_movement(
-    keyboard: Res<ButtonInput<KeyCode>>,
-    mut player_q: Query<(&mut bevy_rapier2d::prelude::Velocity, &Player), With<PlayerMarker>>,
-    time: Res<Time>,
+fn click_to_move_input(
+    mouse: Res<ButtonInput<MouseButton>>,
+    window_q: Query<&Window, With<PrimaryWindow>>,
+    camera_q: Query<(&Camera, &GlobalTransform), With<crate::MainCamera>>,
+    mut move_target: ResMut<MoveTarget>,
 ) {
-    let Ok((mut vel, player)) = player_q.get_single_mut() else { return };
+    if !mouse.just_pressed(MouseButton::Left) { return; }
 
-    // Player tidak bisa bergerak saat dashing (handled di ability system S1-02)
-    if player.is_dashing {
-        return;
-    }
+    let Ok(window) = window_q.get_single() else { return };
+    let Ok((camera, cam_gtf)) = camera_q.get_single() else { return };
+    let Some(cursor) = window.cursor_position() else { return };
+    let Some(world_pos) = camera.viewport_to_world_2d(cam_gtf, cursor) else { return };
 
-    let mut dir = Vec2::ZERO;
-    if keyboard.pressed(KeyCode::KeyW) || keyboard.pressed(KeyCode::ArrowUp)    { dir.y += 1.0; }
-    if keyboard.pressed(KeyCode::KeyS) || keyboard.pressed(KeyCode::ArrowDown)  { dir.y -= 1.0; }
-    if keyboard.pressed(KeyCode::KeyA) || keyboard.pressed(KeyCode::ArrowLeft)  { dir.x -= 1.0; }
-    if keyboard.pressed(KeyCode::KeyD) || keyboard.pressed(KeyCode::ArrowRight) { dir.x += 1.0; }
-
-    if dir != Vec2::ZERO {
-        dir = dir.normalize();
-    }
-
-    vel.linvel = dir * PLAYER_SPEED;
-    let _ = time; // dipakai saat kita tambah acceleration/deceleration nanti
+    move_target.0 = Some(world_pos);
 }
 
 // ---------------------------------------------------------------------------
-// Mouse Facing System (S0-04)
+// Move toward target
 // ---------------------------------------------------------------------------
 
-/// Rotasi sprite player agar menghadap posisi mouse cursor.
+fn player_movement(
+    mut player_q: Query<
+        (&Transform, &mut bevy_rapier2d::prelude::Velocity, &Player),
+        With<PlayerMarker>,
+    >,
+    mut move_target: ResMut<MoveTarget>,
+) {
+    let Ok((tf, mut vel, player)) = player_q.get_single_mut() else { return };
+
+    if player.is_dashing { return; }
+
+    let Some(target) = move_target.0 else {
+        vel.linvel = Vec2::ZERO;
+        return;
+    };
+
+    let current = tf.translation.truncate();
+    let to_target = target - current;
+
+    if to_target.length() < ARRIVAL_THRESHOLD {
+        vel.linvel = Vec2::ZERO;
+        move_target.0 = None;
+    } else {
+        vel.linvel = to_target.normalize() * PLAYER_SPEED;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Mouse facing — aman karena KinematicVelocityBased tidak override rotation
+// ---------------------------------------------------------------------------
+
 fn player_mouse_facing(
     window_q: Query<&Window, With<PrimaryWindow>>,
     camera_q: Query<(&Camera, &GlobalTransform), With<crate::MainCamera>>,
@@ -134,9 +132,7 @@ fn player_mouse_facing(
     let Some(cursor_pos) = window.cursor_position() else { return };
     let Some(world_pos) = camera.viewport_to_world_2d(cam_gtf, cursor_pos) else { return };
 
-    let player_pos = player_tf.translation.truncate();
-    let dir = world_pos - player_pos;
-
+    let dir = world_pos - player_tf.translation.truncate();
     if dir.length_squared() > 1.0 {
         let angle = dir.y.atan2(dir.x) - std::f32::consts::FRAC_PI_2;
         player_tf.rotation = Quat::from_rotation_z(angle);
@@ -145,10 +141,9 @@ fn player_mouse_facing(
 }
 
 // ---------------------------------------------------------------------------
-// Cooldown Tick (S0-04 — utility untuk semua ability)
+// Cooldown tick
 // ---------------------------------------------------------------------------
 
-/// Decrement semua ability cooldown setiap frame.
 fn cooldown_tick(
     mut player_q: Query<&mut Player, With<PlayerMarker>>,
     time: Res<Time>,
@@ -156,10 +151,9 @@ fn cooldown_tick(
     let Ok(mut player) = player_q.get_single_mut() else { return };
     let dt = time.delta_seconds();
     let cd = &mut player.cooldowns;
-
-    cd.melee = (cd.melee - dt).max(0.0);
-    cd.dash = (cd.dash - dt).max(0.0);
-    cd.grenade = (cd.grenade - dt).max(0.0);
+    cd.melee          = (cd.melee - dt).max(0.0);
+    cd.dash           = (cd.dash - dt).max(0.0);
+    cd.grenade        = (cd.grenade - dt).max(0.0);
     cd.void_explosion = (cd.void_explosion - dt).max(0.0);
-    cd.repair_pulse = (cd.repair_pulse - dt).max(0.0);
+    cd.repair_pulse   = (cd.repair_pulse - dt).max(0.0);
 }

@@ -1,16 +1,10 @@
 // Void Architect — plugins/ui.rs
-// HUD, modals (level-up, rescue), menus.
-// S0 scope: phase timer display + resource counters (minimal, fungsional)
+// HUD, modals, menus. S0 scope: debug HUD minimal.
 // Full HUD: Sprint 4 (S4-01)
 
 use bevy::prelude::*;
-
 use crate::components::*;
 use crate::GameState;
-
-// ---------------------------------------------------------------------------
-// Plugin
-// ---------------------------------------------------------------------------
 
 pub struct UiPlugin;
 
@@ -19,14 +13,10 @@ impl Plugin for UiPlugin {
         app
             .add_systems(OnEnter(GameState::MainMenu), spawn_main_menu)
             .add_systems(OnEnter(GameState::InRun), spawn_debug_hud)
-            .add_systems(Update, (
-                update_debug_hud,
-                main_menu_input,
-            ).run_if(in_state(GameState::MainMenu)))
             .add_systems(Update,
-                update_debug_hud_in_run
-                    .run_if(in_state(GameState::InRun))
-            );
+                main_menu_input.run_if(in_state(GameState::MainMenu)))
+            .add_systems(Update,
+                update_debug_hud_in_run.run_if(in_state(GameState::InRun)));
     }
 }
 
@@ -40,7 +30,7 @@ impl Plugin for UiPlugin {
 #[derive(Component)] struct DebugHudPlayerHp;
 
 // ---------------------------------------------------------------------------
-// Main Menu (minimal untuk S0 — full UI di S4-02)
+// Main Menu
 // ---------------------------------------------------------------------------
 
 fn spawn_main_menu(mut commands: Commands) {
@@ -61,27 +51,15 @@ fn spawn_main_menu(mut commands: Commands) {
     )).with_children(|parent| {
         parent.spawn(TextBundle::from_section(
             "VOID ARCHITECT",
-            TextStyle {
-                font_size: 52.0,
-                color: Color::srgb(0.0, 0.85, 0.85),
-                ..default()
-            },
+            TextStyle { font_size: 52.0, color: Color::srgb(0.0, 0.85, 0.85), ..default() },
         ));
         parent.spawn(TextBundle::from_section(
             "\n[ENTER] Start Run",
-            TextStyle {
-                font_size: 22.0,
-                color: Color::srgb(0.6, 0.6, 0.6),
-                ..default()
-            },
+            TextStyle { font_size: 22.0, color: Color::srgb(0.6, 0.6, 0.6), ..default() },
         ));
         parent.spawn(TextBundle::from_section(
             "[ESC] Quit",
-            TextStyle {
-                font_size: 18.0,
-                color: Color::srgb(0.4, 0.4, 0.4),
-                ..default()
-            },
+            TextStyle { font_size: 18.0, color: Color::srgb(0.4, 0.4, 0.4), ..default() },
         ));
     });
 }
@@ -94,7 +72,6 @@ fn main_menu_input(
     mut commands: Commands,
 ) {
     if keyboard.just_pressed(KeyCode::Enter) {
-        // Despawn menu sebelum transisi
         for entity in &menu_q {
             commands.entity(entity).despawn_recursive();
         }
@@ -106,15 +83,14 @@ fn main_menu_input(
 }
 
 // ---------------------------------------------------------------------------
-// Debug HUD (S0 — diganti full HUD di S4-01)
+// Debug HUD
 // ---------------------------------------------------------------------------
 
 fn spawn_debug_hud(mut commands: Commands) {
-    // Top-left: Phase timer + Day
     commands.spawn((
         TextBundle {
             text: Text::from_section(
-                "DAY 1 | DAY PHASE | 3:00",
+                "Day 1 | DAY | 3:00",
                 TextStyle { font_size: 18.0, color: Color::WHITE, ..default() },
             ),
             style: Style {
@@ -128,7 +104,6 @@ fn spawn_debug_hud(mut commands: Commands) {
         DebugHudPhase,
     ));
 
-    // Top-right: Resources
     commands.spawn((
         TextBundle {
             text: Text::from_section(
@@ -146,7 +121,6 @@ fn spawn_debug_hud(mut commands: Commands) {
         DebugHudResources,
     ));
 
-    // Top-left below phase: Player HP
     commands.spawn((
         TextBundle {
             text: Text::from_section(
@@ -165,16 +139,16 @@ fn spawn_debug_hud(mut commands: Commands) {
     ));
 }
 
-// Placeholder — akan mengisi data dari resources
-fn update_debug_hud(_commands: Commands) {}
-
 fn update_debug_hud_in_run(
     phase_timer: Res<PhaseTimer>,
     resources: Res<PlayerResources>,
     player_q: Query<&Health, With<crate::plugins::player::PlayerMarker>>,
-    mut phase_text_q: Query<&mut Text, (With<DebugHudPhase>, Without<DebugHudResources>, Without<DebugHudPlayerHp>)>,
-    mut res_text_q: Query<&mut Text, (With<DebugHudResources>, Without<DebugHudPhase>, Without<DebugHudPlayerHp>)>,
-    mut hp_text_q: Query<&mut Text, (With<DebugHudPlayerHp>, Without<DebugHudPhase>, Without<DebugHudResources>)>,
+    mut phase_q: Query<&mut Text,
+        (With<DebugHudPhase>, Without<DebugHudResources>, Without<DebugHudPlayerHp>)>,
+    mut res_q: Query<&mut Text,
+        (With<DebugHudResources>, Without<DebugHudPhase>, Without<DebugHudPlayerHp>)>,
+    mut hp_q: Query<&mut Text,
+        (With<DebugHudPlayerHp>, Without<DebugHudPhase>, Without<DebugHudResources>)>,
 ) {
     let phase_name = match phase_timer.phase {
         Phase::Day => "DAY",
@@ -183,23 +157,23 @@ fn update_debug_hud_in_run(
     let mins = (phase_timer.remaining / 60.0) as u32;
     let secs = (phase_timer.remaining % 60.0) as u32;
 
-    if let Ok(mut text) = phase_text_q.get_single_mut() {
-        text.sections[0].value = format!(
+    if let Ok(mut t) = phase_q.get_single_mut() {
+        t.sections[0].value = format!(
             "Day {} | {} | {}:{:02}",
             phase_timer.day, phase_name, mins, secs
         );
     }
 
-    if let Ok(mut text) = res_text_q.get_single_mut() {
-        text.sections[0].value = format!(
+    if let Ok(mut t) = res_q.get_single_mut() {
+        t.sections[0].value = format!(
             "Stone: {} | Scrap: {} | Crystal: {} | Food: {}",
             resources.stone, resources.scrap, resources.void_crystal, resources.food
         );
     }
 
     if let Ok(hp) = player_q.get_single() {
-        if let Ok(mut text) = hp_text_q.get_single_mut() {
-            text.sections[0].value = format!("HP: {:.0}/{:.0}", hp.current, hp.max);
+        if let Ok(mut t) = hp_q.get_single_mut() {
+            t.sections[0].value = format!("HP: {:.0}/{:.0}", hp.current, hp.max);
         }
     }
 }

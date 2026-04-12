@@ -6,24 +6,21 @@ use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
-// Spatial & Physics
+// Spatial
 // ---------------------------------------------------------------------------
 
-/// 2D world position — dipakai sebagai shortcut reference di luar Transform.
-/// Untuk physics sebenarnya, bevy_rapier2d menggunakan Transform langsung.
+/// 2D world position snapshot — shortcut reference di luar Transform.
+/// Physics sebenarnya diurus rapier via Transform; ini hanya cache baca.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct Position(pub Vec2);
 
-/// Current velocity vector (unit/s). Rapier2d yang menggerakkan rigidbody,
-/// tapi komponen ini dipakai sistem lain yang butuh baca kecepatan.
-#[derive(Component, Debug, Clone, Copy, Default)]
-pub struct Velocity(pub Vec2);
+// NOTE: Tidak ada Velocity di sini — rapier punya sendiri (bevy_rapier2d::Velocity).
+// Kalau plugin lain butuh baca kecepatan, query bevy_rapier2d::prelude::Velocity langsung.
 
 // ---------------------------------------------------------------------------
 // Health
 // ---------------------------------------------------------------------------
 
-/// Health pool untuk player, enemy, struktur, Void Core, dan NPC.
 #[derive(Component, Debug, Clone)]
 pub struct Health {
     pub current: f32,
@@ -56,19 +53,14 @@ impl Health {
 // Player
 // ---------------------------------------------------------------------------
 
-/// Data spesifik player yang tidak masuk ke Progression.
 #[derive(Component, Debug, Clone)]
 pub struct Player {
     pub level: u32,
     pub exp: u32,
-    pub exp_next: u32, // threshold next level-up
-    /// Aura radius yang mempengaruhi morale NPC di sekitarnya (px).
+    pub exp_next: u32,
     pub morale_aura: f32,
-    /// Arah hadap (radian) berdasarkan mouse position.
     pub facing: f32,
-    /// Flag apakah sedang dalam state dodge dash (untuk iframes).
     pub is_dashing: bool,
-    /// Timer cooldown tiap ability dalam detik.
     pub cooldowns: AbilityCooldowns,
 }
 
@@ -86,21 +78,19 @@ impl Default for Player {
     }
 }
 
-/// Cooldown tracker untuk semua ability player (dalam detik tersisa).
 #[derive(Debug, Clone, Default)]
 pub struct AbilityCooldowns {
-    pub melee: f32,        // 0.4s
-    pub dash: f32,         // 3.0s
-    pub grenade: f32,      // 12.0s
-    pub void_explosion: f32, // 45.0s
-    pub repair_pulse: f32, // 20.0s
+    pub melee: f32,
+    pub dash: f32,
+    pub grenade: f32,
+    pub void_explosion: f32,
+    pub repair_pulse: f32,
 }
 
 // ---------------------------------------------------------------------------
 // Enemy
 // ---------------------------------------------------------------------------
 
-/// Tipe enemy — menentukan AI behavior dan stat base.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EnemyType {
     VoidDrone,
@@ -109,38 +99,30 @@ pub enum EnemyType {
     VoidCrawler,
     HollowTitan,
     RiftHive,
-    SwarmLord, // Boss
+    SwarmLord,
 }
 
-/// Komponen utama enemy entity.
 #[derive(Component, Debug, Clone)]
 pub struct Enemy {
     pub variant: EnemyType,
-    /// Flag modifikasi behavior dari adaptation system.
     pub adapt_flags: u8,
-    /// Base damage per serangan.
     pub damage: f32,
-    /// Jarak serangan (px).
     pub attack_range: f32,
-    /// Cooldown serangan (detik).
     pub attack_cooldown: f32,
     pub attack_timer: f32,
-    /// EXP yang diberikan saat mati.
     pub exp_reward: u32,
 }
 
-// Adapt flags sebagai konstanta bit
 pub mod adapt_flags {
-    pub const TARGET_NPC: u8       = 0b0000_0001;
-    pub const BYPASS_WALL: u8      = 0b0000_0010;
-    pub const ENRAGED: u8          = 0b0000_0100;
+    pub const TARGET_NPC: u8 = 0b0000_0001;
+    pub const BYPASS_WALL: u8 = 0b0000_0010;
+    pub const ENRAGED: u8 = 0b0000_0100;
 }
 
 // ---------------------------------------------------------------------------
 // Structure
 // ---------------------------------------------------------------------------
 
-/// Tipe struktur — menentukan behavior dan visual.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StructureType {
     Wall,
@@ -153,48 +135,32 @@ pub enum StructureType {
     Barracks,
 }
 
-/// Komponen utama struktur yang di-place player.
 #[derive(Component, Debug, Clone)]
 pub struct Structure {
     pub tier: u8,
     pub structure_type: StructureType,
-    /// Durability 0.0–1.0 (fraction of max HP).
     pub durability: f32,
-    /// Grid position dalam tile units.
     pub grid_pos: IVec2,
 }
 
-/// Marker untuk entitas Wall — dicari oleh Breacher AI.
-#[derive(Component)]
-pub struct WallMarker;
+#[derive(Component)] pub struct WallMarker;
+#[derive(Component)] pub struct TurretMarker;
+#[derive(Component)] pub struct FarmMarker;
+#[derive(Component)] pub struct HouseMarker;
 
-/// Marker untuk entitas Turret — dikenai EMP Void Crawler.
-#[derive(Component)]
-pub struct TurretMarker;
-
-/// Marker untuk entitas Farm.
-#[derive(Component)]
-pub struct FarmMarker;
-
-/// Marker untuk entitas House.
-#[derive(Component)]
-pub struct HouseMarker;
-
-/// State apakah turret sedang di-disable oleh EMP.
 #[derive(Component, Debug, Default)]
 pub struct TurretState {
-    pub emp_timer: f32,   // > 0 = disabled
+    pub emp_timer: f32,
     pub fire_timer: f32,
     pub range: f32,
     pub damage: f32,
-    pub fire_rate: f32,   // shots/second
+    pub fire_rate: f32,
 }
 
 // ---------------------------------------------------------------------------
 // NPC
 // ---------------------------------------------------------------------------
 
-/// Role yang bisa dimiliki NPC — menentukan behavior hariannya.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NpcRole {
     Farmer,
@@ -202,20 +168,15 @@ pub enum NpcRole {
     Guard,
     Healer,    // post-MVP
     Scavenger, // post-MVP
-    Idle,      // baru rescue, belum di-assign
+    Idle,
 }
 
-/// Komponen utama NPC survivor.
 #[derive(Component, Debug, Clone)]
 pub struct Npc {
     pub role: NpcRole,
-    /// 0.0–1.0 hunger level (0 = lapar, 1 = kenyang).
     pub hunger: f32,
-    /// 0.0–100.0 morale individu.
     pub morale: f32,
-    /// HP NPC.
     pub hp: f32,
-    /// Apakah NPC sedang assigned ke struktur tertentu.
     pub assigned_to: Option<Entity>,
 }
 
@@ -235,7 +196,6 @@ impl Default for Npc {
 // Phase Timer
 // ---------------------------------------------------------------------------
 
-/// Fase saat ini dalam siklus Day/Night.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Phase {
     #[default]
@@ -243,15 +203,11 @@ pub enum Phase {
     Night,
 }
 
-/// Resource global yang menyimpan state fase dan timer.
 #[derive(Resource, Debug, Clone)]
 pub struct PhaseTimer {
     pub phase: Phase,
-    /// Waktu tersisa dalam fase ini (detik).
     pub remaining: f32,
-    /// Nomor hari saat ini (mulai dari 1).
     pub day: u32,
-    /// Nomor wave malam ini.
     pub wave_num: u32,
 }
 
@@ -259,7 +215,7 @@ impl Default for PhaseTimer {
     fn default() -> Self {
         Self {
             phase: Phase::Day,
-            remaining: 180.0, // 3 menit
+            remaining: 180.0,
             day: 1,
             wave_num: 0,
         }
@@ -270,50 +226,36 @@ impl Default for PhaseTimer {
 // Strategy Tracker
 // ---------------------------------------------------------------------------
 
-/// Resource yang merekam pola bermain player untuk adaptive enemy system.
 #[derive(Resource, Debug, Clone, Default)]
 pub struct StrategyTracker {
-    // Akumulasi damage ke wall vs total structure damage
     pub wall_damage_total: f32,
     pub structure_damage_total: f32,
-    // Kill yang dilakukan turret vs total kills
     pub turret_kills: u32,
     pub total_kills: u32,
-    // Waktu player diam (tidak bergerak) vs total malam
     pub stationary_time: f32,
     pub total_night_time: f32,
-    // Kill yang dilakukan Guard NPC
     pub npc_guard_kills: u32,
-    /// Night terakhir adaptation dievaluasi.
     pub last_evaluated_wave: u32,
 }
 
 impl StrategyTracker {
     pub fn wall_reliance(&self) -> f32 {
-        if self.structure_damage_total == 0.0 {
-            return 0.0;
-        }
+        if self.structure_damage_total == 0.0 { return 0.0; }
         self.wall_damage_total / self.structure_damage_total
     }
 
     pub fn turret_kill_ratio(&self) -> f32 {
-        if self.total_kills == 0 {
-            return 0.0;
-        }
+        if self.total_kills == 0 { return 0.0; }
         self.turret_kills as f32 / self.total_kills as f32
     }
 
     pub fn stationary_ratio(&self) -> f32 {
-        if self.total_night_time == 0.0 {
-            return 0.0;
-        }
+        if self.total_night_time == 0.0 { return 0.0; }
         self.stationary_time / self.total_night_time
     }
 
     pub fn npc_kill_ratio(&self) -> f32 {
-        if self.total_kills == 0 {
-            return 0.0;
-        }
+        if self.total_kills == 0 { return 0.0; }
         self.npc_guard_kills as f32 / self.total_kills as f32
     }
 }
@@ -322,60 +264,53 @@ impl StrategyTracker {
 // Meta Progression
 // ---------------------------------------------------------------------------
 
-/// Persisted between runs. Serialized to JSON on disk.
 #[derive(Resource, Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MetaProgress {
     pub void_shards: u32,
     pub unlocked_blueprints: Vec<String>,
-    /// Enemy types yang sudah pernah ditemui (untuk Codex — post-MVP).
     pub codex_seen: Vec<String>,
-    // Unlock flags
     pub has_starting_turret: bool,
     pub has_starting_walls: bool,
     pub void_affinity_active: bool,
     pub colony_bond_active: bool,
     pub sentinel_unlocked: bool,
-    pub wraith_unlocked: bool,    // post-MVP
-    pub void_surge_unlocked: bool, // post-MVP
+    pub wraith_unlocked: bool,
+    pub void_surge_unlocked: bool,
 }
 
 // ---------------------------------------------------------------------------
 // Game State Resources
 // ---------------------------------------------------------------------------
 
-/// Colony-level stats: food stock, morale rata-rata, populasi.
 #[derive(Resource, Debug, Clone)]
 pub struct ColonyState {
     pub food: u32,
-    pub morale: f32,       // 0.0–100.0
+    pub morale: f32,
     pub population: u32,
-    pub max_population: u32, // Houses × 4
-    /// Berapa hari berturut-turut food = 0.
+    pub max_population: u32,
     pub starvation_days: u32,
 }
 
 impl Default for ColonyState {
     fn default() -> Self {
         Self {
-            food: 10, // starter food
+            food: 10,
             morale: 70.0,
             population: 2,
-            max_population: 0, // diupdate saat house dibangun
+            max_population: 0,
             starvation_days: 0,
         }
     }
 }
 
-/// Inventori resource player saat ini.
 #[derive(Resource, Debug, Clone, Default)]
 pub struct PlayerResources {
     pub stone: u32,
     pub scrap: u32,
     pub void_crystal: u32,
-    pub food: u32, // alias ke ColonyState.food — diupdate bersama
+    pub food: u32,
 }
 
-/// Run-level statistics (untuk run-end screen dan Void Shard calculation).
 #[derive(Resource, Debug, Clone, Default)]
 pub struct RunStats {
     pub days_survived: u32,
@@ -389,11 +324,8 @@ pub struct RunStats {
 // Markers
 // ---------------------------------------------------------------------------
 
-/// Marker untuk Void Core entity — target utama musuh.
-#[derive(Component)]
-pub struct VoidCore;
+#[derive(Component)] pub struct VoidCore;
 
-/// Marker untuk resource node di peta.
 #[derive(Component, Debug, Clone)]
 pub struct ResourceNode {
     pub stone: u32,
@@ -402,7 +334,6 @@ pub struct ResourceNode {
     pub food: u32,
 }
 
-/// Marker untuk projectile (turret, grenade).
 #[derive(Component, Debug, Clone)]
 pub struct Projectile {
     pub damage: f32,
@@ -415,7 +346,6 @@ pub struct Projectile {
 // Events
 // ---------------------------------------------------------------------------
 
-/// Dispatch saat fase berganti (Day → Night atau Night → Day).
 #[derive(Event, Debug, Clone)]
 pub struct PhaseChanged {
     pub new_phase: Phase,
@@ -423,7 +353,6 @@ pub struct PhaseChanged {
     pub wave_num: u32,
 }
 
-/// Dispatch saat entity menerima damage.
 #[derive(Event, Debug, Clone)]
 pub struct DamageEvent {
     pub target: Entity,
@@ -432,7 +361,6 @@ pub struct DamageEvent {
     pub from_npc: bool,
 }
 
-/// Dispatch saat enemy mati.
 #[derive(Event, Debug, Clone)]
 pub struct EnemyDied {
     pub entity: Entity,
@@ -442,19 +370,16 @@ pub struct EnemyDied {
     pub from_npc: bool,
 }
 
-/// Dispatch saat player naik level.
 #[derive(Event, Debug, Clone)]
 pub struct PlayerLeveledUp {
     pub new_level: u32,
 }
 
-/// Dispatch saat Void Core terkena damage.
 #[derive(Event, Debug, Clone)]
 pub struct VoidCoreDamaged {
     pub remaining_fraction: f32,
 }
 
-/// Dispatch saat NPC mati atau desersi.
 #[derive(Event, Debug, Clone)]
 pub enum NpcLost {
     Died { entity: Entity },
