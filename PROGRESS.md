@@ -8,9 +8,9 @@
 
 ```
 Versi aktif   : v0.1 MVP
-Sprint aktif  : S1 — Combat & Structures (SELESAI) → lanjut S2
-Minggu        : 3–4 / 8
-Progress MVP  : 20 / 52 tasks selesai (38%)
+Sprint aktif  : S2 — Colony Systems (SELESAI) → lanjut S3
+Minggu        : 5 / 8
+Progress MVP  : 29 / 52 tasks selesai (56%)
 Terakhir update: 2026-04-12
 ```
 
@@ -20,7 +20,7 @@ Terakhir update: 2026-04-12
 
 ```
 Task aktif    : -
-Target hari ini: Mulai S2-01 (NPC entity + wander AI)
+Target hari ini: Mulai S3-01 (EXP system)
 Blocker       : -
 ```
 
@@ -60,27 +60,34 @@ Blocker       : -
 > menghindari Bevy B0001 mutable query conflict — pola yang sama dengan ADR-14 (turret_ai).
 > Wave spawner pakai SimpleRng (LCG internal) — tidak butuh dependency `rand` tambahan.
 
+### Sprint 2 — Colony Systems
+
+- [x] **S2-01** — NPC entity — spawn 2 NPC awal (Farmer+Builder), wander AI via SimpleRng, role assignment
+- [x] **S2-02** — Farmer role — npc_farmer_assign() ke Farm terdekat, +2 Food/day bonus via hunger_system
+- [x] **S2-03** — Builder role — resource BuilderBonus (construction_speed_bonus 0.30), diupdate tiap frame
+- [x] **S2-04** — Guard role — patrol zona GUARD_PATROL_RADIUS, chase + attack enemy, 40HP, 1.2s attack CD
+- [x] **S2-05** — Hunger system — potong food tiap PhaseChanged(Day), 1 food/NPC (Guard=2), Farmer bonus food
+- [x] **S2-06** — Starvation — Day1=−10 morale, Day2=1 NPC deserts (despawn), Day3=1 NPC mati + −10 morale
+- [x] **S2-07** — Morale system — 0–100, apply_morale_delta() pub helper, npc_efficiency() modifier, MoraleChanged event
+- [x] **S2-08** — House structure — update_house_cap() dari HouseMarker count, max_population=houses×4 (min 2)
+- [x] **S2-09** — NPC rescue event — RescueTrigger spawn saat Day, [R] rescue / [N] skip, 5s timeout, cooldown 60s
+
+> **Catatan S2**: Semua 9 task diimplementasi dalam satu sesi di `plugins/colony.rs` (872 baris).
+> Guard AI mengikuti pola ADR-15 — satu query Enemy untuk npc_guard_ai menghindari B0001.
+> `components.rs` diupdate: `NpcRole` tambah `Default` derive + `#[default] Idle`,
+> `ColonyState::default()` population diubah dari 2 → 0 (spawn_starting_npcs yang increment).
+> `ui.rs` diupdate: tambah HudColony (pop/morale/food bar) dan HudRescuePrompt (prompt [R/N]).
+> Bug fix compile: E0277 NpcRole tidak impl Default → tambah derive. Warnings dibersihkan.
+
 ---
 
 ## 🔄 IN PROGRESS
 
-> Kosong — Sprint 1 SELESAI. Siap mulai S2.
+> Kosong — Sprint 2 SELESAI. Siap mulai S3.
 
 ---
 
 ## 📋 BACKLOG MVP
-
-### Sprint 2 — Colony Systems (Minggu 5)
-
-- [ ] **S2-01** — NPC entity — spawn, wander AI, role assignment, start 2 NPCs `2d`
-- [ ] **S2-02** — Farmer role — assign to Farm, +2 Food/day `0.5d`
-- [ ] **S2-03** — Builder role — reduce construction time 30% `0.5d`
-- [ ] **S2-04** — Guard role — patrol zone, attack nearby enemies, 40HP `1d`
-- [ ] **S2-05** — Hunger system — 1–2 Food/NPC/day deduction per day cycle `1d`
-- [ ] **S2-06** — Starvation: Day 1 = -10 morale, Day 2 = 1 NPC deserts, Day 3 = 1 NPC dies `0.5d`
-- [ ] **S2-07** — Morale system — 0–100, event hooks, efficiency modifiers below 30 `1d`
-- [ ] **S2-08** — House structure — 4 NPC cap per house, block rescue if full `0.5d`
-- [ ] **S2-09** — NPC rescue event — day-phase trigger, [R/Skip] prompt, 5s timeout `0.5d`
 
 ### Sprint 3 — Progression & Boss (Minggu 6)
 
@@ -221,14 +228,30 @@ mereka secara eksplisit. Satu system = satu query = zero conflict.
 **Ditolak:** Tiga system terpisah dengan type-filter (tidak ada EnemyType component terpisah
 per type — EnemyType ada di dalam Enemy component, sehingga tidak bisa dipakai sebagai filter).
 
+### ADR-16: NPC AI — Guard Terpisah dari Wander System
+**Keputusan:** Guard punya system sendiri (`npc_guard_ai`), Idle/Farmer/Builder di `npc_wander_ai`.  
+**Alasan:** Guard butuh query `Enemy` untuk attack — kalau digabung di satu system dengan
+wander, muncul B0001 conflict karena wander butuh `&mut Velocity` per NPC sementara guard
+juga butuh `&mut Velocity` + query Enemy. Dipisah = dua system dengan query berbeda = aman.  
+**Ditolak:** Satu mega-system NPC (terlalu kompleks, sulit di-debug per role).
+
+### ADR-17: ColonyState population — Start dari 0, Diincrement oleh spawn_starting_npcs
+**Keputusan:** `ColonyState::default()` set `population: 0`. Fungsi `spawn_starting_npcs`
+yang increment ke 2 saat `OnEnter(InRun)`.  
+**Alasan:** Mencegah double-count antara default value (2) dan increment manual saat spawn.
+Jika default = 2 dan spawn juga increment, population akan terhitung 4 padahal hanya 2 NPC.  
+**Ditolak:** Default population: 2 tanpa spawn increment (tidak sinkron dengan entity yang actual ada).
+
 ---
 
 ## 🚧 BLOCKER & CATATAN
 
-> **Perlu ditest saat compile pertama S2:**
-> `enemies.rs` mengimport `crate::plugins::player::{Invincible, PlayerMarker}` dan
-> `crate::plugins::world::{MAP_WIDTH, MAP_HEIGHT, TILE_SIZE}` — pastikan visibility
-> `pub` di kedua file tersebut sudah benar (berdasarkan cek di sesi ini: sudah `pub`).
+> Tidak ada blocker aktif. Sprint 3 bisa dimulai.
+>
+> **Catatan untuk S3**: `progression.rs` sudah punya skeleton EXP system (exp_gain_from_kills,
+> check_level_up) — S3-01 tinggal verifikasi dan tambah wave bonus. S3-02 butuh TimeScale
+> yang belum ada di Bevy 0.14 secara built-in — alternatif: pause via custom flag resource
+> dan skip Update systems dengan `run_if` condition.
 
 ---
 
@@ -310,6 +333,35 @@ per type — EnemyType ada di dalam Enemy component, sehingga tidak bisa dipakai
 
                Sprint 1 COMPLETE. Semua 13 task done.
                Sprint berikutnya: S2 — Colony Systems (Minggu 5).
+
+[2026-04-12] — Sprint S2 SELESAI — S2-01 s/d S2-09 selesai (satu sesi).
+
+               File yang dibuat/dimodifikasi:
+               - plugins/colony.rs — ditulis ulang penuh dari stub 19 baris → 872 baris.
+                 Berisi: spawn 2 NPC awal, wander AI, Farmer assign, BuilderBonus resource,
+                 Guard patrol+attack, hunger system, starvation consequences, morale system,
+                 house cap, rescue event [R/N] + 5s timeout.
+               - components.rs — NpcRole tambah Default derive + #[default] Idle.
+                 ColonyState::default() population: 2 → 0.
+               - ui.rs — tambah HudColony (pop/morale/food/starvation display) dan
+                 HudRescuePrompt (prompt [R/N] dengan countdown).
+
+               Keputusan arsitektur baru:
+               - ADR-16: Guard AI dipisah dari wander system (query berbeda, hindari B0001).
+               - ADR-17: ColonyState population start dari 0, diincrement spawn_starting_npcs.
+               - SimpleRng (LCG) dipakai ulang di colony.rs — konsisten dengan enemies.rs.
+               - BuilderBonus resource pub — bisa dibaca structures.rs di Sprint 3/4.
+               - apply_morale_delta() dan npc_efficiency() di-export pub untuk dipakai
+                 sistem lain (combat, enemies) saat event morale dari luar colony.
+
+               Bug fix compile:
+               - E0277: NpcRole tidak impl Default → tambah derive Default + #[default] Idle.
+               - Warning unused_parens di match → hapus parens.
+               - Warning unused_mut di morale_daily_events → ganti ResMut → Res, hapus
+                 EventWriter yang tidak dipakai di body.
+
+               Sprint 2 COMPLETE. Semua 9 task done.
+               Sprint berikutnya: S3 — Progression & Boss (Minggu 6).
 ```
 
 ---
@@ -318,11 +370,11 @@ per type — EnemyType ada di dalam Enemy component, sehingga tidak bisa dipakai
 
 ```
 Total tasks MVP    : 52
-Selesai            : 20 (38%)
+Selesai            : 29 (56%)
 In progress        : 0
-Belum dimulai      : 32
+Belum dimulai      : 23
 
 Hari kerja estimasi: ~42 hari
-Hari kerja terpakai: ~4 hari (S0 + S1 lengkap)
-Sprint berikutnya  : S2 — Colony Systems (S2-01 s/d S2-09)
+Hari kerja terpakai: ~5 hari (S0 + S1 + S2 lengkap)
+Sprint berikutnya  : S3 — Progression & Boss (S3-01 s/d S3-10)
 ```
