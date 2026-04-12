@@ -8,9 +8,9 @@
 
 ```
 Versi aktif   : v0.1 MVP
-Sprint aktif  : S1 — Combat & Structures
-Minggu        : 3 / 8
-Progress MVP  : 15 / 52 tasks selesai (29%)
+Sprint aktif  : S1 — Combat & Structures (SELESAI) → lanjut S2
+Minggu        : 3–4 / 8
+Progress MVP  : 20 / 52 tasks selesai (38%)
 Terakhir update: 2026-04-12
 ```
 
@@ -20,7 +20,7 @@ Terakhir update: 2026-04-12
 
 ```
 Task aktif    : -
-Target hari ini: S1-09 s/d S1-12 (enemy AI + wave spawn system)
+Target hari ini: Mulai S2-01 (NPC entity + wander AI)
 Blocker       : -
 ```
 
@@ -49,27 +49,26 @@ Blocker       : -
 - [x] **S1-06** — Turret structure — auto-target enemy terdekat 150px, homing projectile 15dmg 1.5s fire rate, barrel berputar
 - [x] **S1-07** — Farm structure — produksi 3 Food/day saat PhaseChanged(Day), HP-based output
 - [x] **S1-08** — Build mode — [B] toggle, ghost preview (hijau=affordable/merah=tidak), LMB=place, ESC=cancel, [W/T/G/H] pilih jenis
+- [x] **S1-09** — Enemy: Void Drone — AI chase player, drone_waypoint() hindari wall (36px clearance check)
+- [x] **S1-10** — Enemy: Breacher — target WallMarker terdekat setiap 0.5s, ignore player, attack range 28px
+- [x] **S1-11** — Enemy: Rift Stalker — cepat 170px/s, FlankPhase (Approach 60° → Strike +25% speed), prefer Npc target
+- [x] **S1-12** — Wave spawn system — PhaseChanged(Night) trigger, queue bertahap (0.35s→0.12s interval), adaptation: wall_reliance>0.7 → +Breacher
+- [x] **S1-13** — Death system — check_enemy_death di combat.rs (despawn + EnemyDied event), EXP grant di progression.rs, loot drop scrap
+
+> **Catatan S1-09~S1-12**: Diimplementasi dalam satu file `plugins/enemies.rs`.
+> Semua AI digabung dalam `enemy_ai_system` (satu Query Enemy mutable) untuk
+> menghindari Bevy B0001 mutable query conflict — pola yang sama dengan ADR-14 (turret_ai).
+> Wave spawner pakai SimpleRng (LCG internal) — tidak butuh dependency `rand` tambahan.
 
 ---
 
 ## 🔄 IN PROGRESS
 
-> Kosong — siap mulai S1-09.
+> Kosong — Sprint 1 SELESAI. Siap mulai S2.
 
 ---
 
 ## 📋 BACKLOG MVP
-
-### Sprint 1 — Combat & Structures (Minggu 3–4) — SISA
-
-- [ ] **S1-09** — Enemy: Void Drone — A* pathfinding, chase player `1d`
-- [ ] **S1-10** — Enemy: Breacher — ignore player, target nearest wall `0.5d`
-- [ ] **S1-11** — Enemy: Rift Stalker — fast, flank, prefer NPC targets `1d`
-- [ ] **S1-12** — Wave spawn system — edge spawning, count scaling (+2/wave), Night trigger `1d`
-- [ ] **S1-13** — Death system — entity despawn, loot drop, EXP grant, particle burst `0.5d`
-
-> Catatan: S1-13 (death system) sudah sebagian diimplementasi di combat.rs (check_enemy_death, spawn_loot).
-> Yang tersisa: particle burst VFX (S4-05) dan integrasi EXP dari EnemyDied event (sudah ada di progression.rs).
 
 ### Sprint 2 — Colony Systems (Minggu 5)
 
@@ -211,17 +210,25 @@ filter `Without<T>` tidak cukup eksplisit. Tanpa `ParamSet`, Bevy panic B0001 sa
 dengan 4 pass berurutan. Data diangkat ke struct lokal (`TurretData`, `FireData`) antar pass.  
 **Ditolak:** Menambah `Without<Enemy>` + `Without<TurretBarrel>` ke semua query (fragile,
 mudah break kalau component bertambah di masa depan).
-**Keputusan:** Dash teleport menggunakan `DashTarget` resource yang di-resolve di system terpisah
-(`apply_dash_teleport`), bukan langsung di `handle_player_input`.  
-**Alasan:** Borrow conflict di Bevy: tidak bisa mutably borrow `Transform` dan query lain
-dalam satu system function jika query-nya overlap. Resource sebagai "message passing" antar system
-adalah pattern idiomatic Bevy untuk kasus ini.
+
+### ADR-15: Enemy AI — Single System (enemy_ai_system)
+**Keputusan:** Semua AI enemy (Void Drone, Breacher, Rift Stalker) diimplementasi dalam
+satu system `enemy_ai_system` dengan `match enemy.variant`, bukan tiga system terpisah.  
+**Alasan:** Tiga system terpisah yang masing-masing punya `Query<(&Transform, &mut Velocity,
+&mut EnemyAiState, &Enemy)>` akan trigger B0001 mutable query conflict di Bevy — Bevy tidak
+bisa verify bahwa ketiga query tersebut disjoint karena tidak ada filter yang memisahkan
+mereka secara eksplisit. Satu system = satu query = zero conflict.  
+**Ditolak:** Tiga system terpisah dengan type-filter (tidak ada EnemyType component terpisah
+per type — EnemyType ada di dalam Enemy component, sehingga tidak bisa dipakai sebagai filter).
 
 ---
 
 ## 🚧 BLOCKER & CATATAN
 
-> Kosong saat ini.
+> **Perlu ditest saat compile pertama S2:**
+> `enemies.rs` mengimport `crate::plugins::player::{Invincible, PlayerMarker}` dan
+> `crate::plugins::world::{MAP_WIDTH, MAP_HEIGHT, TILE_SIZE}` — pastikan visibility
+> `pub` di kedua file tersebut sudah benar (berdasarkan cek di sesi ini: sudah `pub`).
 
 ---
 
@@ -273,30 +280,36 @@ adalah pattern idiomatic Bevy untuk kasus ini.
 
 [2026-04-12] — Bug fix session — structures.rs.
 
-               Bug 1 (compile error E0255):
-               pub use self::BuildMode dan pub use self::BuildSelection di akhir
-               structures.rs menyebabkan "defined multiple times". Keduanya sudah
-               pub di definisinya — pub use hanya diperlukan untuk re-export dari
-               submodule, bukan dari file yang sama. Dihapus.
+               Bug 1 (compile error E0255): pub use self::BuildMode dan pub use
+               self::BuildSelection → dihapus (tidak perlu re-export dari file yang sama).
+               Bug 2 (compile error E0277): .add_systems(OnEnter(InRun), ()) → dihapus.
+               Bug 3 (compile warnings): parameter tidak terpakai → dihapus.
+               Bug 4 (runtime panic Bevy B0001): turret_ai 3 Query Transform bersamaan
+               → refaktor ke ParamSet<(p0, p1, p2)> dengan 4 pass. ADR-14 ditambahkan.
 
-               Bug 2 (compile error E0277):
-               .add_systems(OnEnter(GameState::InRun), ()) — unit tuple () bukan
-               valid IntoSystemConfigs. Tidak ada system yang perlu jalan OnEnter
-               InRun di structures plugin, jadi baris ini dihapus seluruhnya.
+[2026-04-12] — Sprint S1 SELESAI — S1-09, S1-10, S1-11, S1-12 selesai.
 
-               Bug 3 (compile warnings):
-               - keyboard param di place_structure tidak dipakai → dihapus
-               - mut strategy: ResMut<StrategyTracker> di turret_ai tidak dipakai → dihapus
+               File yang dimodifikasi:
+               - plugins/enemies.rs — ditulis ulang penuh dari stub kosong.
+                 619 baris. Berisi: wave spawn system (S1-12), Void Drone AI (S1-09),
+                 Breacher AI (S1-10), Rift Stalker AI (S1-11), enemy attack system.
 
-               Bug 4 (runtime panic Bevy B0001):
-               turret_ai punya 3 Query yang akses Transform bersamaan: turret_q
-               (&Transform), barrel_q (&mut Transform), enemy_q (&Transform). Bevy
-               tidak bisa verify disjoint → panic saat runtime. Fix: refaktor ke
-               ParamSet<(turret_q, barrel_q, enemy_q)> dengan 4 pass berurutan
-               (baca turret → reset timer → kumpul enemy pos → update barrel + spawn
-               projectile). ADR baru ditambahkan (ADR-14).
+               Keputusan arsitektur baru:
+               - ADR-15: Semua AI enemy dalam satu enemy_ai_system untuk menghindari
+                 B0001 mutable query conflict (sama pattern dengan ADR-14 turret_ai).
+               - Wave spawner pakai SimpleRng (LCG internal) — tidak tambah dependency rand.
+               - Adaptation dari StrategyTracker sudah terintegrasi di build_wave_composition:
+                 wall_reliance > 0.7 → breacher_ratio naik dari 15% ke 35%.
+               - Stalker belum spawn di wave 1 (mulai wave 2) sesuai GDD.
 
-               ADR baru: ADR-14 (ParamSet untuk multi-Transform query di turret_ai).
+               S1-13 (death system) sudah complete dari sesi sebelumnya:
+               - check_enemy_death di combat.rs ✓
+               - EXP grant via EnemyDied event di progression.rs ✓
+               - Loot drop (scrap) di spawn_loot ✓
+               - Particle VFX di-defer ke S4-05 (sesuai rencana)
+
+               Sprint 1 COMPLETE. Semua 13 task done.
+               Sprint berikutnya: S2 — Colony Systems (Minggu 5).
 ```
 
 ---
@@ -305,11 +318,11 @@ adalah pattern idiomatic Bevy untuk kasus ini.
 
 ```
 Total tasks MVP    : 52
-Selesai            : 15 (29%)
+Selesai            : 20 (38%)
 In progress        : 0
-Belum dimulai      : 37
+Belum dimulai      : 32
 
 Hari kerja estimasi: ~42 hari
-Hari kerja terpakai: ~3 hari (S0 + S1 partial)
-Sprint berikutnya  : Selesaikan S1-09~S1-12 (enemy AI + wave), lanjut S2
+Hari kerja terpakai: ~4 hari (S0 + S1 lengkap)
+Sprint berikutnya  : S2 — Colony Systems (S2-01 s/d S2-09)
 ```
