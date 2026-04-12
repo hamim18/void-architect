@@ -1,0 +1,36 @@
+// Void Architect — assets/data/biomes.ron
+// Definisi biome. MVP: Ashlands only.
+// Format: Bevy RON, loaded via RonAssetLoader
+
+(
+    biomes: [
+        (
+            id: "ashlands",
+            display_name: "The Ashlands",
+            tileset: "tile_ashlands_32",  // placeholder — sprite dipakai v0.3
+            resource_multipliers: (
+                stone: 1.0,
+                scrap: 0.8,
+                void_crystal: 0.1,
+                food: 0.6,
+            ),
+            hazards: [
+                FirePatch(density: 0.05),
+            ],
+            music_day: "music_ashlands_day",
+            music_night: "music_ashlands_night",
+            map_width: 40,
+            map_height: 30,
+            tile_size: 32,
+            // Perlin noise config untuk tilemap gen
+            noise_scale: 0.15,
+            // Threshold noise → tile variant
+            // > 0.6  = RockPatch, > 0.3 = VariantA, > 0.0 = Base
+            // > -0.3 = VariantB,  else = AshSpot
+        ),
+        // Post-MVP biomes (placeholder entries)
+        // (id: "void_marsh", ...),
+        // (id: "iron_ruins", ...),
+        // (id: "rift_core", ...),
+    ]
+)

@@ -1,0 +1,35 @@
+# Rust build artifacts
+/target/
+Cargo.lock
+
+# Generated assets (dikecualikan dari git — regenerate via scripts)
+# Uncomment baris di bawah jika mau exclude generated assets
+# assets/visual/**/*.png
+# assets/audio/**/*.ogg
+
+# Meta save file (per-user, bukan bagian dari repo)
+void_architect_meta.json
+*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Neovim
+.nvim/
+Session.vim
+
+# Env / secrets
+.env
+.env.*
+
+# CI artifacts
+*.log
