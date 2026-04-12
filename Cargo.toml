@@ -8,7 +8,7 @@ name = "void-architect"
 path = "src/main.rs"
 
 [dependencies]
-bevy = { version = "0.14", features = ["dynamic_linking"] }
+bevy = "0.14"
 bevy_rapier2d = { version = "0.27", features = ["simd-stable"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -18,10 +18,9 @@ noise = "0.9"
 dirs = "5"
 
 [dev-dependencies]
-# Integration tests
 bevy = { version = "0.14" }
 
-# Optimasi build untuk dev — game real-time butuh FPS layak saat development
+# Optimasi build: paket dependensi di-release level, game code sendiri opt-level=1
 [profile.dev]
 opt-level = 1
 

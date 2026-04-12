@@ -9,8 +9,8 @@
 ```
 Versi aktif   : v0.1 MVP
 Sprint aktif  : S1 — Combat & Structures
-Minggu        : 2 / 8
-Progress MVP  : 8 / 52 tasks selesai (15%)
+Minggu        : 3 / 8
+Progress MVP  : 15 / 52 tasks selesai (29%)
 Terakhir update: 2026-04-12
 ```
 
@@ -20,7 +20,7 @@ Terakhir update: 2026-04-12
 
 ```
 Task aktif    : -
-Target hari ini: S1-01 — Melee attack
+Target hari ini: S1-09 s/d S1-12 (enemy AI + wave spawn system)
 Blocker       : -
 ```
 
@@ -39,31 +39,37 @@ Blocker       : -
 - [x] **S0-07** — Resource node spawning — scatter map, auto-collect on proximity
 - [x] **S0-08** — GitHub CI — cargo fmt + clippy + build + test on push
 
+### Sprint 1 — Combat & Structures
+
+- [x] **S1-01** — Melee attack — arc sweep 45° cone (cos 22.5°), [F] atau LMB ke enemy, flash effect, 0.4s CD
+- [x] **S1-02** — Dodge dash — teleport ke arah facing 90px, 8-frame iframes (Invincible component), 3s CD, [Space]
+- [x] **S1-03** — Void Grenade — projectile terbang ke cursor, AOE 80px explosion, 2s lifetime, 12s CD, [E]
+- [x] **S1-04** — Repair Pulse — heal struktur dalam 100px +20HP, 20s CD, [R]
+- [x] **S1-05** — Wall structure — RigidBody::Fixed collider, 100HP, snap ke grid 32px, repair mechanic via RepairPulse
+- [x] **S1-06** — Turret structure — auto-target enemy terdekat 150px, homing projectile 15dmg 1.5s fire rate, barrel berputar
+- [x] **S1-07** — Farm structure — produksi 3 Food/day saat PhaseChanged(Day), HP-based output
+- [x] **S1-08** — Build mode — [B] toggle, ghost preview (hijau=affordable/merah=tidak), LMB=place, ESC=cancel, [W/T/G/H] pilih jenis
+
 ---
 
 ## 🔄 IN PROGRESS
 
-> Kosong — siap mulai S1.
+> Kosong — siap mulai S1-09.
 
 ---
 
 ## 📋 BACKLOG MVP
 
-### Sprint 1 — Combat & Structures (Minggu 3–4)
+### Sprint 1 — Combat & Structures (Minggu 3–4) — SISA
 
-- [ ] **S1-01** — Melee attack — arc sweep 45° cone, hit detection, flash effect, 0.4s CD `1d`
-- [ ] **S1-02** — Dodge dash — short teleport, 8-frame iframes, 3s CD `0.5d`
-- [ ] **S1-03** — Void Grenade — projectile, AOE 80px, stagger, 12s CD `1d`
-- [ ] **S1-04** — Repair Pulse — heal nearby structures 20HP, AOE 100px, 20s CD `0.5d`
-- [ ] **S1-05** — Wall structure — grid placement, 100HP, repair mechanic `1d`
-- [ ] **S1-06** — Turret structure — auto-target, projectile, 150px range, 1.5s fire rate `1.5d`
-- [ ] **S1-07** — Farm structure — 3 Food/day on PhaseChanged(Day) `0.5d`
-- [ ] **S1-08** — Build mode — hotbar selection, ghost preview, snap placement, resource deduction `1d`
 - [ ] **S1-09** — Enemy: Void Drone — A* pathfinding, chase player `1d`
 - [ ] **S1-10** — Enemy: Breacher — ignore player, target nearest wall `0.5d`
 - [ ] **S1-11** — Enemy: Rift Stalker — fast, flank, prefer NPC targets `1d`
 - [ ] **S1-12** — Wave spawn system — edge spawning, count scaling (+2/wave), Night trigger `1d`
 - [ ] **S1-13** — Death system — entity despawn, loot drop, EXP grant, particle burst `0.5d`
+
+> Catatan: S1-13 (death system) sudah sebagian diimplementasi di combat.rs (check_enemy_death, spawn_loot).
+> Yang tersisa: particle burst VFX (S4-05) dan integrasi EXP dari EnemyDied event (sudah ada di progression.rs).
 
 ### Sprint 2 — Colony Systems (Minggu 5)
 
@@ -164,8 +170,7 @@ tanpa konflik. Velocity tetap bisa di-set langsung (`vel.linvel`).
 
 ### ADR-06: Player Movement — LMB Click-to-Move
 **Keputusan:** Player bergerak dengan klik kiri (LMB) ke titik tujuan. Facing selalu ke arah cursor.  
-**Alasan:** Cocok dengan genre top-down colony defense. LMB untuk move, LMB juga akan
-double sebagai attack (attack saat target adalah enemy — diimplementasi S1-01).  
+**Alasan:** Cocok dengan genre top-down colony defense. LMB ke enemy = attack (S1-01), LMB ke tanah = move.  
 **Ditolak:** WASD (kurang intuitif untuk build+move hybrid gameplay).
 
 ### ADR-07: Bevy Color API — srgb bukan rgb
@@ -175,30 +180,42 @@ double sebagai attack (attack saat target adalah enemy — diimplementasi S1-01)
 
 ### ADR-08: Camera Follow — XY only, Z tidak disentuh
 **Keputusan:** `camera_follow_player` lerp hanya di XY. `translation.z` kamera tidak diubah.  
-**Alasan:** Bug kritis ditemukan: lerp ke `target.extend(999.9)` menyebabkan kamera
-makin frame makin jauh di Z → semua tile (z = -10) keluar dari near clip plane dan
-tidak ter-render. Camera2dBundle default z = 999.9, biarkan di sana.  
-**Fix:** Set `ctf.translation.x` dan `.y` terpisah, `.z` tidak disentuh.
+**Alasan:** Bug kritis: lerp ke `target.extend(999.9)` menyebabkan kamera makin jauh di Z
+→ tile (z = -10) keluar dari near clip plane dan tidak ter-render.
 
 ### ADR-09: Tile Z-Layer — z = -10.0
 **Keputusan:** Tile di-spawn di `z = -10.0`, gameplay entity di `z = 0.5–2.0`.  
-**Alasan:** Memberi ruang layer yang jelas. Camera (z ≈ 999.9) melihat semua layer
-dari -1000 sampai 1000 di Bevy 2D default projection.  
-**Sebelumnya:** Tile di z = -1.0 (terlalu dekat dengan gameplay entity, berisiko z-fighting).
+**Alasan:** Layer yang jelas. Camera (z ≈ 999.9) melihat semua layer dari -1000 sampai 1000.
 
 ### ADR-10: Tidak Ada Velocity Component di components.rs
 **Keputusan:** Tidak ada `Velocity` custom di `components.rs`. Plugin yang butuh velocity
 query `bevy_rapier2d::prelude::Velocity` langsung.  
-**Alasan:** Konflik nama antara custom `Velocity` dan rapier `Velocity` menyebabkan
-`E0659: ambiguous name` saat keduanya di-glob import. Solusi: hapus custom Velocity,
-pakai rapier punya saja.
+**Alasan:** Konflik nama `E0659: ambiguous name` antara custom dan rapier Velocity.
 
 ### ADR-11: Cargo.toml — Tanpa dynamic_linking
 **Keputusan:** Feature `dynamic_linking` tidak dipakai di Cargo.toml.  
-**Alasan:** Menyebabkan crash/linker error di beberapa Linux setup (terutama saat compile
-dari mobile/remote environment). Sudah dihapus dari dependencies.  
-**Trade-off:** Build lebih lambat saat development. Bisa diaktifkan kembali secara lokal
-dengan `--features bevy/dynamic_linking` jika compile time jadi masalah.
+**Alasan:** Crash/linker error di beberapa Linux setup. Sudah dihapus dari dependencies.
+
+### ADR-12: Build Mode — [B] Toggle, Day-Only
+**Keputusan:** Build mode hanya bisa diaktifkan saat Day phase. Placement diblokir saat Night.  
+**Alasan:** Sesuai GDD: "Construct and upgrade defensive structures during the day phase."  
+Night = defend only. Ini juga mencegah exploit membangun saat wave aktif.
+
+### ADR-14: Multi-Transform Query — ParamSet
+**Keputusan:** System yang butuh akses `Transform` dari beberapa kelompok entitas berbeda
+wajib menggunakan `ParamSet` jika salah satu query minta `&mut Transform`.  
+**Alasan:** Bevy tidak bisa verify secara statik bahwa query-query tersebut disjoint jika
+filter `Without<T>` tidak cukup eksplisit. Tanpa `ParamSet`, Bevy panic B0001 saat runtime.
+`ParamSet` memaksa hanya satu query aktif per waktu sehingga aliasing `&mut` tidak mungkin terjadi.  
+**Contoh:** `turret_ai` — 3 query Transform (turret/barrel/enemy) direfaktor ke `ParamSet<(p0, p1, p2)>`
+dengan 4 pass berurutan. Data diangkat ke struct lokal (`TurretData`, `FireData`) antar pass.  
+**Ditolak:** Menambah `Without<Enemy>` + `Without<TurretBarrel>` ke semua query (fragile,
+mudah break kalau component bertambah di masa depan).
+**Keputusan:** Dash teleport menggunakan `DashTarget` resource yang di-resolve di system terpisah
+(`apply_dash_teleport`), bukan langsung di `handle_player_input`.  
+**Alasan:** Borrow conflict di Bevy: tidak bisa mutably borrow `Transform` dan query lain
+dalam satu system function jika query-nya overlap. Resource sebagai "message passing" antar system
+adalah pattern idiomatic Bevy untuk kasus ini.
 
 ---
 
@@ -235,7 +252,51 @@ dengan `--features bevy/dynamic_linking` jika compile time jadi masalah.
 
                Status akhir S0: compile clean, tilemap render, player bisa
                gerak LMB click-to-move, facing ke cursor, resource node collect.
-               Siap lanjut S1.
+
+[2026-04-12] — Sprint S1 dimulai — S1-01 s/d S1-08 selesai (satu sesi).
+
+               File yang dimodifikasi:
+               - plugins/player.rs — Melee (S1-01), Dash (S1-02), Grenade (S1-03),
+                 Repair Pulse (S1-04). Input terpusat di handle_player_input.
+               - plugins/structures.rs — Wall (S1-05), Turret (S1-06), Farm (S1-07),
+                 Build Mode (S1-08). Turret AI + projectile homing. Farm food production.
+               - plugins/combat.rs — process_damage_events extended, check_enemy_death
+                 (S1-13 partial), spawn_loot, check_void_core_damage.
+               - plugins/ui.rs — Extended debug HUD: cooldown display, build mode indicator.
+               - plugins/progression.rs — ResourceCost derive Copy (fix const usage).
+               - Cargo.toml — Hapus dynamic_linking (ADR-11).
+
+               ADR baru: ADR-12 (Build Mode day-only), ADR-13 (DashTarget resource pattern).
+
+               Yang tersisa di S1: S1-09, S1-10, S1-11, S1-12 (enemy AI + wave spawn).
+               S1-13 death system sudah 80% di combat.rs (tinggal particle VFX di S4-05).
+
+[2026-04-12] — Bug fix session — structures.rs.
+
+               Bug 1 (compile error E0255):
+               pub use self::BuildMode dan pub use self::BuildSelection di akhir
+               structures.rs menyebabkan "defined multiple times". Keduanya sudah
+               pub di definisinya — pub use hanya diperlukan untuk re-export dari
+               submodule, bukan dari file yang sama. Dihapus.
+
+               Bug 2 (compile error E0277):
+               .add_systems(OnEnter(GameState::InRun), ()) — unit tuple () bukan
+               valid IntoSystemConfigs. Tidak ada system yang perlu jalan OnEnter
+               InRun di structures plugin, jadi baris ini dihapus seluruhnya.
+
+               Bug 3 (compile warnings):
+               - keyboard param di place_structure tidak dipakai → dihapus
+               - mut strategy: ResMut<StrategyTracker> di turret_ai tidak dipakai → dihapus
+
+               Bug 4 (runtime panic Bevy B0001):
+               turret_ai punya 3 Query yang akses Transform bersamaan: turret_q
+               (&Transform), barrel_q (&mut Transform), enemy_q (&Transform). Bevy
+               tidak bisa verify disjoint → panic saat runtime. Fix: refaktor ke
+               ParamSet<(turret_q, barrel_q, enemy_q)> dengan 4 pass berurutan
+               (baca turret → reset timer → kumpul enemy pos → update barrel + spawn
+               projectile). ADR baru ditambahkan (ADR-14).
+
+               ADR baru: ADR-14 (ParamSet untuk multi-Transform query di turret_ai).
 ```
 
 ---
@@ -244,11 +305,11 @@ dengan `--features bevy/dynamic_linking` jika compile time jadi masalah.
 
 ```
 Total tasks MVP    : 52
-Selesai            : 8  (15%)
+Selesai            : 15 (29%)
 In progress        : 0
-Belum dimulai      : 44
+Belum dimulai      : 37
 
 Hari kerja estimasi: ~42 hari
-Hari kerja terpakai: ~2 hari (S0)
-Sprint berikutnya  : S1 — Combat & Structures (13 tasks, est. 10 hari)
+Hari kerja terpakai: ~3 hari (S0 + S1 partial)
+Sprint berikutnya  : Selesaikan S1-09~S1-12 (enemy AI + wave), lanjut S2
 ```

@@ -61,7 +61,7 @@ pub struct ResourceGained {
 // Resource API (pub — dipakai structures.rs, dll)
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct ResourceCost {
     pub stone: u32,
     pub scrap: u32,
