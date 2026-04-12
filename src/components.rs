@@ -161,13 +161,14 @@ pub struct TurretState {
 // NPC
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum NpcRole {
     Farmer,
     Builder,
     Guard,
     Healer,    // post-MVP
     Scavenger, // post-MVP
+    #[default]
     Idle,
 }
 
@@ -296,7 +297,9 @@ impl Default for ColonyState {
         Self {
             food: 10,
             morale: 70.0,
-            population: 2,
+            // population dimulai dari 0 — colony.rs spawn_starting_npcs yang increment
+            // ke 2 saat OnEnter(InRun). Ini mencegah double-count antara default + spawn.
+            population: 0,
             max_population: 0,
             starvation_days: 0,
         }

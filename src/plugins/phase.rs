@@ -10,8 +10,8 @@ use crate::GameState;
 // Constants
 // ---------------------------------------------------------------------------
 
-pub const DAY_DURATION: f32 = 180.0;   // 3 menit
-pub const NIGHT_DURATION: f32 = 120.0; // 2 menit
+pub const DAY_DURATION: f32 = 60.0;   // 3 menit
+pub const NIGHT_DURATION: f32 = 30.0; // 2 menit
 
 // ---------------------------------------------------------------------------
 // Plugin

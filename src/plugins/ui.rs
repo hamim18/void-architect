@@ -16,7 +16,11 @@ impl Plugin for UiPlugin {
             .add_systems(Update,
                 main_menu_input.run_if(in_state(GameState::MainMenu)))
             .add_systems(Update,
-                update_debug_hud.run_if(in_state(GameState::InRun)));
+                (
+                    update_debug_hud,
+                    update_colony_hud,       // S2: colony status
+                    update_rescue_prompt,    // S2: rescue prompt visibility
+                ).run_if(in_state(GameState::InRun)));
     }
 }
 
@@ -30,6 +34,9 @@ impl Plugin for UiPlugin {
 #[derive(Component)] struct HudPlayerHp;
 #[derive(Component)] struct HudCooldowns;
 #[derive(Component)] struct HudBuildMode;
+// S2: Colony HUD
+#[derive(Component)] struct HudColony;
+#[derive(Component)] struct HudRescuePrompt;
 
 // ---------------------------------------------------------------------------
 // Main Menu
@@ -182,6 +189,43 @@ fn spawn_debug_hud(mut commands: Commands) {
         },
         HudBuildMode,
     ));
+
+    // S2: Colony status (kanan bawah)
+    commands.spawn((
+        TextBundle {
+            text: Text::from_section(
+                "Colony: 0/0 pop | Morale: 70",
+                TextStyle { font_size: 14.0, color: Color::srgb(0.6, 0.9, 0.6), ..default() },
+            ),
+            style: Style {
+                position_type: PositionType::Absolute,
+                bottom: Val::Px(32.0),
+                right: Val::Px(8.0),
+                ..default()
+            },
+            ..default()
+        },
+        HudColony,
+    ));
+
+    // S2: Rescue prompt (tengah bawah — tersembunyi sampai ada rescue event)
+    commands.spawn((
+        TextBundle {
+            text: Text::from_section(
+                "",
+                TextStyle { font_size: 18.0, color: Color::srgb(1.0, 0.9, 0.2), ..default() },
+            ),
+            style: Style {
+                position_type: PositionType::Absolute,
+                bottom: Val::Px(80.0),
+                left: Val::Percent(30.0),
+                right: Val::Percent(30.0),
+                ..default()
+            },
+            ..default()
+        },
+        HudRescuePrompt,
+    ));
 }
 
 fn update_debug_hud(
@@ -256,5 +300,72 @@ fn update_debug_hud(
         } else {
             t.sections[0].value = "[B] Build Mode".to_string();
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// S2: Colony HUD Update
+// ---------------------------------------------------------------------------
+
+fn update_colony_hud(
+    colony: Res<ColonyState>,
+    npc_q: Query<&Npc>,
+    mut colony_hud_q: Query<&mut Text, With<HudColony>>,
+) {
+    let Ok(mut t) = colony_hud_q.get_single_mut() else { return };
+
+    // Hitung breakdown role
+    let farmers  = npc_q.iter().filter(|n| n.role == NpcRole::Farmer).count();
+    let builders = npc_q.iter().filter(|n| n.role == NpcRole::Builder).count();
+    let guards   = npc_q.iter().filter(|n| n.role == NpcRole::Guard).count();
+
+    // Warna morale
+    let morale_str = if colony.morale < 30.0 {
+        format!("⚠ Morale:{:.0}", colony.morale)   // rendah — peringatan
+    } else if colony.morale > 80.0 {
+        format!("★ Morale:{:.0}", colony.morale)    // tinggi — bonus
+    } else {
+        format!("Morale:{:.0}", colony.morale)
+    };
+
+    let starvation_str = if colony.starvation_days > 0 {
+        format!(" | LAPAR:{} hari", colony.starvation_days)
+    } else {
+        String::new()
+    };
+
+    t.sections[0].value = format!(
+        "Pop:{}/{} | F:{} B:{} G:{} | Food:{} | {}{}",
+        colony.population, colony.max_population,
+        farmers, builders, guards,
+        colony.food,
+        morale_str,
+        starvation_str,
+    );
+}
+
+// ---------------------------------------------------------------------------
+// S2: Rescue Prompt Update
+// ---------------------------------------------------------------------------
+
+fn update_rescue_prompt(
+    rescue: Res<crate::plugins::colony::RescueState>,
+    mut prompt_q: Query<&mut Text, With<HudRescuePrompt>>,
+) {
+    let Ok(mut t) = prompt_q.get_single_mut() else { return };
+
+    if rescue.prompt_active {
+        let role_name = match rescue.pending_role {
+            NpcRole::Farmer    => "Petani",
+            NpcRole::Builder   => "Pembangun",
+            NpcRole::Guard     => "Penjaga",
+            _                  => "Survivor",
+        };
+        t.sections[0].value = format!(
+            "[ SURVIVOR DITEMUKAN — {} ]\n[R] Selamatkan  [N] Lewati  ({:.0}s)",
+            role_name, rescue.timeout_timer
+        );
+    } else {
+        t.sections[0].value.clear();
     }
 }
