@@ -6,7 +6,10 @@ use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use bevy_rapier2d::prelude::*;
 
-use crate::components::*;
+// Import components tapi exclude Velocity kita — di plugin ini yang dipakai rapier Velocity
+use crate::components::{
+    AbilityCooldowns, Health, Player, Position,
+};
 use crate::GameState;
 
 // ---------------------------------------------------------------------------
@@ -18,7 +21,7 @@ const PLAYER_DAMPING: f32 = 10.0;        // linear damping
 const PLAYER_COLLIDER_RADIUS: f32 = 10.0;
 
 // Warna player (MVP geometric: cyan triangle)
-const COLOR_PLAYER: Color = Color::rgb(0.0, 0.85, 0.85);
+const COLOR_PLAYER: Color = Color::srgb(0.0, 0.85, 0.85);
 
 // ---------------------------------------------------------------------------
 // Plugin
@@ -68,7 +71,7 @@ fn spawn_player(mut commands: Commands) {
         },
         // Physics
         RigidBody::Dynamic,
-        Velocity::default(),
+        bevy_rapier2d::prelude::Velocity::default(),
         Collider::ball(PLAYER_COLLIDER_RADIUS),
         LockedAxes::ROTATION_LOCKED, // player tidak boleh rotate secara physics
         Damping {

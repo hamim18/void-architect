@@ -19,17 +19,17 @@ pub const MAP_WIDTH: i32 = 40;   // tiles
 pub const MAP_HEIGHT: i32 = 30;  // tiles
 
 // Warna palette Ashlands (MVP geometric rendering)
-const COLOR_TILE_BASE: Color    = Color::rgb(0.15, 0.12, 0.10);
-const COLOR_TILE_VARIANT_A: Color = Color::rgb(0.18, 0.14, 0.11);
-const COLOR_TILE_VARIANT_B: Color = Color::rgb(0.12, 0.10, 0.08);
-const COLOR_TILE_ROCK: Color    = Color::rgb(0.25, 0.22, 0.20);
-const COLOR_TILE_ASH: Color     = Color::rgb(0.20, 0.20, 0.20);
+const COLOR_TILE_BASE: Color    = Color::srgb(0.15, 0.12, 0.10);
+const COLOR_TILE_VARIANT_A: Color = Color::srgb(0.18, 0.14, 0.11);
+const COLOR_TILE_VARIANT_B: Color = Color::srgb(0.12, 0.10, 0.08);
+const COLOR_TILE_ROCK: Color    = Color::srgb(0.25, 0.22, 0.20);
+const COLOR_TILE_ASH: Color     = Color::srgb(0.20, 0.20, 0.20);
 
 // Warna resource node
-const COLOR_NODE_STONE: Color   = Color::rgb(0.55, 0.55, 0.60);
-const COLOR_NODE_SCRAP: Color   = Color::rgb(0.70, 0.50, 0.20);
-const COLOR_NODE_CRYSTAL: Color = Color::rgb(0.40, 0.20, 0.80);
-const COLOR_NODE_FOOD: Color    = Color::rgb(0.30, 0.65, 0.25);
+const COLOR_NODE_STONE: Color   = Color::srgb(0.55, 0.55, 0.60);
+const COLOR_NODE_SCRAP: Color   = Color::srgb(0.70, 0.50, 0.20);
+const COLOR_NODE_CRYSTAL: Color = Color::srgb(0.40, 0.20, 0.80);
+const COLOR_NODE_FOOD: Color    = Color::srgb(0.30, 0.65, 0.25);
 
 const RESOURCE_NODE_COUNT: usize = 20;
 const CRYSTAL_NODE_COUNT: usize = 3;
@@ -166,7 +166,7 @@ fn spawn_map_border(commands: &mut Commands, map_offset: Vec2) {
     let border_thickness = TILE_SIZE;
     let map_w = MAP_WIDTH as f32 * TILE_SIZE;
     let map_h = MAP_HEIGHT as f32 * TILE_SIZE;
-    let border_color = Color::rgb(0.05, 0.04, 0.03);
+    let border_color = Color::srgb(0.05, 0.04, 0.03);
 
     // Top, Bottom, Left, Right
     let borders = [
@@ -285,7 +285,7 @@ fn spawn_void_core(
     commands.spawn((
         SpriteBundle {
             sprite: Sprite {
-                color: Color::rgb(0.6, 0.1, 0.9),
+                color: Color::srgb(0.6, 0.1, 0.9),
                 custom_size: Some(Vec2::splat(24.0)),
                 ..default()
             },

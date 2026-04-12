@@ -54,7 +54,7 @@ fn spawn_main_menu(mut commands: Commands) {
                 justify_content: JustifyContent::Center,
                 ..default()
             },
-            background_color: Color::rgb(0.05, 0.04, 0.08).into(),
+            background_color: Color::srgb(0.05, 0.04, 0.08).into(),
             ..default()
         },
         MainMenuRoot,
@@ -63,7 +63,7 @@ fn spawn_main_menu(mut commands: Commands) {
             "VOID ARCHITECT",
             TextStyle {
                 font_size: 52.0,
-                color: Color::rgb(0.0, 0.85, 0.85),
+                color: Color::srgb(0.0, 0.85, 0.85),
                 ..default()
             },
         ));
@@ -71,7 +71,7 @@ fn spawn_main_menu(mut commands: Commands) {
             "\n[ENTER] Start Run",
             TextStyle {
                 font_size: 22.0,
-                color: Color::rgb(0.6, 0.6, 0.6),
+                color: Color::srgb(0.6, 0.6, 0.6),
                 ..default()
             },
         ));
@@ -79,7 +79,7 @@ fn spawn_main_menu(mut commands: Commands) {
             "[ESC] Quit",
             TextStyle {
                 font_size: 18.0,
-                color: Color::rgb(0.4, 0.4, 0.4),
+                color: Color::srgb(0.4, 0.4, 0.4),
                 ..default()
             },
         ));
@@ -101,7 +101,7 @@ fn main_menu_input(
         next_state.set(GameState::InRun);
     }
     if keyboard.just_pressed(KeyCode::Escape) {
-        app_exit.send(AppExit);
+        app_exit.send(AppExit::Success);
     }
 }
 
@@ -133,7 +133,7 @@ fn spawn_debug_hud(mut commands: Commands) {
         TextBundle {
             text: Text::from_section(
                 "Stone: 50 | Scrap: 20 | Crystal: 0 | Food: 10",
-                TextStyle { font_size: 16.0, color: Color::rgb(0.8, 0.8, 0.5), ..default() },
+                TextStyle { font_size: 16.0, color: Color::srgb(0.8, 0.8, 0.5), ..default() },
             ),
             style: Style {
                 position_type: PositionType::Absolute,
@@ -151,7 +151,7 @@ fn spawn_debug_hud(mut commands: Commands) {
         TextBundle {
             text: Text::from_section(
                 "HP: 100/100",
-                TextStyle { font_size: 16.0, color: Color::rgb(0.3, 0.9, 0.3), ..default() },
+                TextStyle { font_size: 16.0, color: Color::srgb(0.3, 0.9, 0.3), ..default() },
             ),
             style: Style {
                 position_type: PositionType::Absolute,
