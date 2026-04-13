@@ -8,10 +8,10 @@
 
 ```
 Versi aktif   : v0.1 MVP
-Sprint aktif  : S2 — Colony Systems (SELESAI) → lanjut S3
-Minggu        : 5 / 8
-Progress MVP  : 29 / 52 tasks selesai (56%)
-Terakhir update: 2026-04-12
+Sprint aktif  : S3 — Progression & Boss (SELESAI) → lanjut S4
+Minggu        : 6 / 8
+Progress MVP  : 39 / 52 tasks selesai (75%)
+Terakhir update: 2026-04-13
 ```
 
 ---
@@ -20,7 +20,7 @@ Terakhir update: 2026-04-12
 
 ```
 Task aktif    : -
-Target hari ini: Mulai S3-01 (EXP system)
+Target hari ini: Mulai S4-01 (Full HUD)
 Blocker       : -
 ```
 
@@ -79,28 +79,44 @@ Blocker       : -
 > `ui.rs` diupdate: tambah HudColony (pop/morale/food bar) dan HudRescuePrompt (prompt [R/N]).
 > Bug fix compile: E0277 NpcRole tidak impl Default → tambah derive. Warnings dibersihkan.
 
+### Sprint 3 — Progression & Boss
+
+- [x] **S3-01** — EXP system — kill grants via EnemyDied event (×2 saat KillChain aktif), wave bonus +30 EXP tiap Night→Day
+- [x] **S3-02** — Level-up pause — LevelUpState resource (flag-based, bukan TimeScale), 3-perk modal [1][2][3], resume on confirm
+- [x] **S3-03** — 12 perk implementations (6 Builder, 6 Warrior) — marker components + runtime timers (BerserkerState, KillChainState, TurretOverloadTimer, VoidBurn)
+- [x] **S3-04** — Adaptation tracker — update_strategy_tracker tiap akhir malam, wave composition inject VoidCrawler (turret_kill>60%), Stalker extra (npc_kill>50%), stationary_time tracking
+- [x] **S3-05** — Boss 1: Swarm Lord — spawn_swarm_lord() + 3 RiftHive di posisi fixed, boss immune sampai semua hive destroyed, Phase 2 saat HP<50%, swarm_lord_ai spawn drone/stalker tiap 4s
+- [x] **S3-06** — Void Core entity — spawn_void_core() 500HP di (0,0), monitor_void_core kirim VoidCoreDamaged event, HUD display
+- [x] **S3-07** — Win/Lose conditions — check_win_condition (day > 10), check_lose_condition (player dead atau Void Core dead)
+- [x] **S3-08** — Void Shards earn — compute_run_end() hitung floor(days + bosses×5), tambah ke MetaProgress, transisi ke MetaScreen
+- [x] **S3-09** — Meta save system — dirs::data_local_dir()/VoidArchitect/void_architect_meta.json, atomic write (.tmp → rename), load saat Startup
+- [x] **S3-10** — Architect's Sanctum — 5 unlock via SanctumPurchaseEvent, cost validation, instant save setelah purchase, MetaScreen UI dengan shard counter
+
+> **Catatan S3**: Diimplementasi dalam satu sesi di 4 file:
+> - `plugins/progression.rs` — 731 baris. S3-01 s/d S3-03, S3-06 s/d S3-10.
+>   LevelUpState resource menggantikan TimeScale (tidak ada di Bevy 0.14 built-in).
+>   PerkId enum flat untuk 12 perk, SimpleRng untuk pick_three_perks().
+>   Atomic save: tulis ke .tmp, rename ke final (mencegah korupsi saat exit paksa).
+> - `plugins/enemies.rs` — 691 baris. S3-04 + S3-05.
+>   SwarmLord + RiftHive component baru. Boss immune mechanic via hives_alive counter.
+>   VoidCrawler sekarang bisa di-inject oleh adaptation tracker (wave 3+).
+>   swarm_lord_ai dipisah dari enemy_ai_system (punya query berbeda — ADR-15 tetap terjaga).
+> - `plugins/ui.rs` — 530 baris. Level-up modal (Display::None/Flex toggle), MetaScreen
+>   dengan Sanctum grid, run-end overlay, Void Core HUD.
+> - `src/main.rs` — bersih, semua resource/event diregister di plugin masing-masing.
+>
+> **ADR baru**: ADR-18 (LevelUpState sebagai pause pengganti TimeScale),
+> ADR-19 (Atomic save via .tmp rename).
+
 ---
 
 ## 🔄 IN PROGRESS
 
-> Kosong — Sprint 2 SELESAI. Siap mulai S3.
+> Kosong — Sprint 3 SELESAI. Siap mulai S4.
 
 ---
 
 ## 📋 BACKLOG MVP
-
-### Sprint 3 — Progression & Boss (Minggu 6)
-
-- [ ] **S3-01** — EXP system — kill grants, wave bonus, escalating threshold (×1.4 per level) `0.5d`
-- [ ] **S3-02** — Level-up pause — TimeScale(0), 3-perk modal, resume on confirm `1d`
-- [ ] **S3-03** — 12 perk implementations (6 Builder, 6 Warrior) `2d`
-- [ ] **S3-04** — Adaptation tracker — StrategyTracker resource, wave flag injection `1d`
-- [ ] **S3-05** — Boss 1: Swarm Lord — AI, 3 Rift Hive spawners, Phase 2 `1.5d`
-- [ ] **S3-06** — Void Core entity — 500HP, damage events, screen shake, lose condition `0.5d`
-- [ ] **S3-07** — Win/Lose conditions — Day 10 survive = win; Core=0 / HP=0 = lose `0.5d`
-- [ ] **S3-08** — Void Shards earn — floor(days * 1.0 + boss_kills * 5) `0.5d`
-- [ ] **S3-09** — Meta save system — serde_json serialize MetaProgress to disk `0.5d`
-- [ ] **S3-10** — Architect's Sanctum — 5 MVP unlocks, spend Void Shards `0.5d`
 
 ### Sprint 4 — Polish & Ship (Minggu 7–8)
 
@@ -116,6 +132,11 @@ Blocker       : -
 - [ ] **S4-10** — Balance pass — wave scaling, economy, hunger tension `1d`
 - [ ] **S4-11** — Bug fix sprint — semua P1 dari playtest `1d`
 - [ ] **S4-12** — Release build — cargo build --release, upload itch.io `0.5d`
+
+> **Catatan untuk S4**: S4-02 (main menu) dan S4-03/S4-04 (run-end + sanctum UI) sudah
+> ada implementasi dasar di ui.rs dari S3. S4 tinggal polish dan lengkapi.
+> S4-01 (Full HUD) perlu tambah wave dot indicator dan adapt alert box (belum ada di S3).
+> S4-07 audio.rs masih stub — perlu implementasi penuh.
 
 ---
 
@@ -242,16 +263,42 @@ yang increment ke 2 saat `OnEnter(InRun)`.
 Jika default = 2 dan spawn juga increment, population akan terhitung 4 padahal hanya 2 NPC.  
 **Ditolak:** Default population: 2 tanpa spawn increment (tidak sinkron dengan entity yang actual ada).
 
+### ADR-18: Level-Up Pause — LevelUpState Resource, Bukan TimeScale
+**Keputusan:** Game "pause" saat level-up menggunakan `LevelUpState.is_active` flag resource,
+bukan TimeScale (yang tidak ada di Bevy 0.14 built-in).  
+**Alasan:** Bevy 0.14 tidak punya TimeScale global. Alternatif paling bersih: UI system cek
+`LevelUpState.is_active` dan blokir gameplay input. Enemy AI dan phase timer tidak perlu
+dihentikan — interaksi minimal selama modal terbuka (durasi pendek).  
+**Ditolak:** TimeScale custom (butuh modifikasi Time resource yang risky), `run_if` condition
+di semua system (terlalu banyak boilerplate).
+
+### ADR-19: Atomic Save — Tulis .tmp, Rename ke Final
+**Keputusan:** Meta save ditulis ke file `.tmp` terlebih dahulu, baru di-rename ke path final.  
+**Alasan:** Jika proses crash di tengah penulisan file langsung ke path final, file save bisa
+korup dan tidak bisa di-parse. Dengan atomic rename, file lama tetap valid sampai file baru
+selesai ditulis sempurna.  
+**Ditolak:** Overwrite langsung (risiko korupsi), backup file terpisah (overkill untuk MVP).
+
 ---
 
 ## 🚧 BLOCKER & CATATAN
 
-> Tidak ada blocker aktif. Sprint 3 bisa dimulai.
+> Tidak ada blocker aktif. Sprint 4 bisa dimulai.
 >
-> **Catatan untuk S3**: `progression.rs` sudah punya skeleton EXP system (exp_gain_from_kills,
-> check_level_up) — S3-01 tinggal verifikasi dan tambah wave bonus. S3-02 butuh TimeScale
-> yang belum ada di Bevy 0.14 secara built-in — alternatif: pause via custom flag resource
-> dan skip Update systems dengan `run_if` condition.
+> **Catatan untuk S4**:
+> - S4-02 (main menu) dan S4-03/S4-04 (run-end + sanctum UI) sudah ada implementasi
+>   dasar di ui.rs dari S3. S4 tinggal polish, animasi bg, dan complete.
+> - S4-01 (Full HUD) perlu tambah wave dot indicator dan adapt alert box — belum ada di S3.
+> - S4-07 (adaptive audio) — audio.rs masih stub penuh. Perlu implementasi lengkap.
+> - Integrasi perk ke combat.rs dan structures.rs belum selesai:
+>   - structures.rs perlu cek PerkIronFrame (wall HP), PerkEfficientBuilder (cost discount),
+>     PerkChainTurret (chain shot), PerkArchitectsBastion (+50HP pada placement),
+>     TurretOverloadTimer (2× fire rate).
+>   - combat.rs perlu cek PerkVoidResonance (apply VoidBurn), PerkArchitectsBastion
+>     (50HP shield buffer sebelum damage ke struktur tier 2+).
+>   - player.rs perlu cek BerserkerState (3× damage multiplier saat melee),
+>     PerkSingularity (pull enemies sebelum void explosion).
+>   → Integrasi ini paling natural dikerjakan di S4-10 (balance pass) setelah S4-09 playtest.
 
 ---
 
@@ -362,6 +409,45 @@ Jika default = 2 dan spawn juga increment, population akan terhitung 4 padahal h
 
                Sprint 2 COMPLETE. Semua 9 task done.
                Sprint berikutnya: S3 — Progression & Boss (Minggu 6).
+
+[2026-04-13] — Sprint S3 SELESAI — S3-01 s/d S3-10 selesai (satu sesi).
+
+               File yang dibuat/dimodifikasi:
+               - plugins/progression.rs — ditulis ulang penuh → 731 baris.
+                 S3-01: exp_gain_from_kills + exp_wave_bonus (+30 EXP tiap wave clear).
+                 S3-02: LevelUpState resource, modal [1][2][3], pick_three_perks() SimpleRng.
+                 S3-03: 12 perk via apply_perk() + marker components + runtime state
+                        (BerserkerState, KillChainState, TurretOverloadTimer, VoidBurn).
+                 S3-06: spawn_void_core() 500HP, monitor_void_core event.
+                 S3-07: check_win_condition (day>10) + check_lose_condition (dead).
+                 S3-08: compute_run_end() hitung shards = days + bosses×5.
+                 S3-09: atomic save via dirs::data_local_dir() + .tmp rename.
+                 S3-10: SanctumPurchaseEvent system, 5 unlock, instant save.
+               - plugins/enemies.rs — ditulis ulang penuh → 691 baris.
+                 S3-04: update_strategy_tracker, VoidCrawler injection (turret>60%),
+                        Stalker extra (npc_kill>50%), stationary_time tracking.
+                 S3-05: spawn_swarm_lord() + 3 RiftHive, immune mechanic, Phase 2 (<50% HP),
+                        swarm_lord_ai (spawn drone/stalker tiap 4s), check_boss_death.
+               - plugins/ui.rs — ditulis ulang penuh → 530 baris.
+                 Level-up modal (Display::None/Flex), 3 perk card, input [1][2][3].
+                 MetaScreen: Sanctum grid 5 unlocks, shard counter, feedback message.
+                 Void Core HUD, run-end overlay dengan stats + [ENTER] continue.
+               - src/main.rs — minor cleanup, semua resource di plugin masing-masing.
+
+               Keputusan arsitektur baru:
+               - ADR-18: LevelUpState resource sebagai "pause" pengganti TimeScale.
+               - ADR-19: Atomic save (.tmp → rename) mencegah korupsi file save.
+               - swarm_lord_ai dipisah dari enemy_ai_system (SwarmLord punya query
+                 berbeda karena butuh VoidCore position) — konsisten dengan ADR-15.
+
+               Catatan integrasi untuk S4:
+               - Perk effects di structures.rs (IronFrame, EfficientBuilder, ChainTurret,
+                 ArchitectsBastion, TurretOverload) belum terhubung — dikerjakan di S4.
+               - combat.rs perlu cek PerkVoidResonance + BerserkerState — dikerjakan di S4.
+               - player.rs perlu cek PerkSingularity (pull enemies) — dikerjakan di S4.
+
+               Sprint 3 COMPLETE. Semua 10 task done.
+               Sprint berikutnya: S4 — Polish & Ship (Minggu 7–8).
 ```
 
 ---
@@ -370,11 +456,11 @@ Jika default = 2 dan spawn juga increment, population akan terhitung 4 padahal h
 
 ```
 Total tasks MVP    : 52
-Selesai            : 29 (56%)
+Selesai            : 39 (75%)
 In progress        : 0
-Belum dimulai      : 23
+Belum dimulai      : 13
 
 Hari kerja estimasi: ~42 hari
-Hari kerja terpakai: ~5 hari (S0 + S1 + S2 lengkap)
-Sprint berikutnya  : S3 — Progression & Boss (S3-01 s/d S3-10)
+Hari kerja terpakai: ~6 hari (S0 + S1 + S2 + S3 lengkap)
+Sprint berikutnya  : S4 — Polish & Ship (S4-01 s/d S4-12)
 ```
