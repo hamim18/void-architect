@@ -246,10 +246,13 @@ fn handle_player_input(
         }
     }
 
-    // LMB bukan attack → set move target
+    // LMB bukan attack → set move target (clamp ke batas map)
     if lmb_pressed && !melee_triggered {
         if let Some(world_pos) = cursor_world {
-            move_target.0 = Some(world_pos);
+            let hw = crate::plugins::world::MAP_HALF_W - 20.0;
+            let hh = crate::plugins::world::MAP_HALF_H - 20.0;
+            let clamped = Vec2::new(world_pos.x.clamp(-hw, hw), world_pos.y.clamp(-hh, hh));
+            move_target.0 = Some(clamped);
         }
     }
 

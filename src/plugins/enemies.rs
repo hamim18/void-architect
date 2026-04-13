@@ -6,12 +6,12 @@ use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 
 use crate::components::{
-    adapt_flags, DamageEvent, Enemy, EnemyDied, EnemyType, Health, Npc,
+    adapt_flags, DamageEvent, Enemy, EnemyType, Health, Npc,
     Phase, PhaseChanged, RunStats, StrategyTracker, VoidCore, WallMarker,
 };
 use crate::GameState;
 use crate::plugins::player::{Invincible, PlayerMarker};
-use crate::plugins::progression::{BerserkerState, RunEndEvent};
+// progression imports removed — BerserkerState/RunEndEvent tidak dipakai di enemies.rs
 use crate::plugins::world::{MAP_HEIGHT, MAP_WIDTH, TILE_SIZE};
 
 // ---------------------------------------------------------------------------
@@ -190,7 +190,7 @@ fn handle_wave_spawn_trigger(
 
 fn update_strategy_tracker(
     mut phase_events: EventReader<PhaseChanged>,
-    mut strategy: ResMut<StrategyTracker>,
+    strategy: Res<StrategyTracker>,
 ) {
     for ev in phase_events.read() {
         // Hitung ulang rasio saat Day dimulai (akhir malam)
@@ -371,7 +371,6 @@ fn spawn_swarm_lord(commands: &mut Commands, boss_state: &mut BossState) {
     )).id();
 
     // Spawn 3 Rift Hive di posisi berbeda
-    let mut rng = SimpleRng::new(0x1337_CAFE);
     let hive_positions = [
         Vec2::new(-200.0, 150.0),
         Vec2::new(200.0, 150.0),
@@ -502,9 +501,8 @@ fn check_boss_death(
     boss_q: Query<(&Health, &Transform), With<SwarmLord>>,
     mut boss_state: ResMut<BossState>,
     mut run_stats: ResMut<RunStats>,
-    mut commands: Commands,
 ) {
-    let Ok((hp, tf)) = boss_q.get_single() else { return };
+    let Ok((hp, _tf)) = boss_q.get_single() else { return };
     if !hp.is_dead() { return; }
 
     run_stats.bosses_defeated += 1;

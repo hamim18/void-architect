@@ -75,7 +75,7 @@ fn check_enemy_death(
         run_stats.total_kills += 1;
 
         // Spawn loot — stone/scrap kecil
-        spawn_loot(&mut commands, pos, entity);
+        spawn_loot(&mut commands, pos, enemy.exp_reward);
 
         // Despawn enemy
         commands.entity(entity).despawn_recursive();
@@ -84,25 +84,30 @@ fn check_enemy_death(
     }
 }
 
-/// Spawn loot resource node kecil saat enemy mati
-fn spawn_loot(commands: &mut Commands, pos: Vec2, _enemy_entity: Entity) {
-    // Drop scrap kecil sebagai reward
+/// FIX-05: Spawn XP drop (bola kuning) + scrap kecil saat enemy mati.
+/// EXP baru dihitung saat player memungutnya (bukan langsung ditambah).
+fn spawn_loot(commands: &mut Commands, pos: Vec2, exp_reward: u32) {
+    // XP drop — bola kuning, harus dipungut
+    crate::plugins::world::spawn_xp_drop(commands, pos, exp_reward);
+
+    // Scrap kecil — resource node biasa, dipungut via collect_resource_nodes
     commands.spawn((
         SpriteBundle {
             sprite: Sprite {
                 color: Color::srgb(0.70, 0.50, 0.20),
-                custom_size: Some(Vec2::splat(6.0)),
+                custom_size: Some(Vec2::splat(7.0)),
                 ..default()
             },
-            transform: Transform::from_xyz(pos.x, pos.y, 0.5),
+            transform: Transform::from_xyz(pos.x + 6.0, pos.y, 0.5),
             ..default()
         },
         ResourceNode {
             stone: 0,
-            scrap: 1, // drop 1 scrap per kill
+            scrap: 1,
             void_crystal: 0,
             food: 0,
         },
+        crate::plugins::world::WorldResourceNode,
     ));
 }
 

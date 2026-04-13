@@ -114,6 +114,8 @@ pub struct BuildMode {
     pub active: bool,
     pub selected: Option<BuildSelection>,
     pub ghost_entity: Option<Entity>,
+    /// FIX-02: Cooldown antar placement saat RMB di-hold (detik)
+    pub place_cooldown: f32,
 }
 
 // ---------------------------------------------------------------------------
@@ -154,7 +156,7 @@ fn toggle_build_mode(
         } else {
             build_mode.active = true;
             build_mode.selected = Some(BuildSelection::Wall);
-            bevy::log::info!("[Build] Mode ON — pilih: W=Wall, T=Turret, F=Farm, H=House");
+            bevy::log::info!("[Build] Mode ON | RMB=Place / Hold=Wall panjang | W=Wall T=Turret G=Farm H=House");
         }
     }
 
@@ -216,6 +218,13 @@ fn update_ghost_preview(
     // Snap ke grid
     let grid_pos = snap_to_grid(cursor_pos);
     let affordable = can_afford(&resources, &selection.cost());
+    // FIX-03: Clamp grid pos ke dalam batas map
+    let map_hw = crate::plugins::world::MAP_HALF_W - crate::plugins::world::TILE_SIZE;
+    let map_hh = crate::plugins::world::MAP_HALF_H - crate::plugins::world::TILE_SIZE;
+    let grid_pos = Vec2::new(
+        grid_pos.x.clamp(-map_hw, map_hw),
+        grid_pos.y.clamp(-map_hh, map_hh),
+    );
     let ghost_color = if affordable { COLOR_VALID } else { COLOR_INVALID };
     let ghost_size = structure_size(selection);
 
@@ -246,8 +255,11 @@ fn update_ghost_preview(
 }
 
 // ---------------------------------------------------------------------------
-// Place Structure (LMB saat build mode)
+// FIX-02: Place Structure — RMB klik atau hold (wall panjang)
 // ---------------------------------------------------------------------------
+
+/// Throttle saat hold RMB: jarak waktu minimum antar placement
+const HOLD_PLACE_INTERVAL: f32 = 0.14; // ~7 wall per detik
 
 fn place_structure(
     mut commands: Commands,
@@ -259,16 +271,23 @@ fn place_structure(
     existing_q: Query<&Structure>,
     phase_timer: Res<PhaseTimer>,
     mut colony: ResMut<ColonyState>,
+    time: Res<Time>,
 ) {
-    // Hanya proses saat build mode aktif dan day phase
     if !build_mode.active { return; }
-    if phase_timer.phase == Phase::Night { return; } // tidak bisa build saat malam
+    if phase_timer.phase == Phase::Night { return; }
 
-    if !mouse.just_pressed(MouseButton::Left) { return; }
+    let rmb_just = mouse.just_pressed(MouseButton::Right);
+    let rmb_held = mouse.pressed(MouseButton::Right);
+    if !rmb_just && !rmb_held { return; }
+
+    // Tick cooldown
+    build_mode.place_cooldown -= time.delta_seconds();
+
+    // Kalau hold (bukan just press): skip kalau cooldown belum habis
+    if rmb_held && !rmb_just && build_mode.place_cooldown > 0.0 { return; }
 
     let Some(selection) = build_mode.selected else { return };
 
-    // Resolve cursor world pos
     let cursor_world: Option<Vec2> = (|| {
         let window = window_q.get_single().ok()?;
         let (camera, cam_gtf) = camera_q.get_single().ok()?;
@@ -277,24 +296,26 @@ fn place_structure(
     })();
 
     let Some(cursor_pos) = cursor_world else { return };
-    let grid_pos = snap_to_grid(cursor_pos);
+
+    // FIX-03: Clamp ke dalam batas map
+    let map_hw = crate::plugins::world::MAP_HALF_W - crate::plugins::world::TILE_SIZE;
+    let map_hh = crate::plugins::world::MAP_HALF_H - crate::plugins::world::TILE_SIZE;
+    let clamped = Vec2::new(cursor_pos.x.clamp(-map_hw, map_hw), cursor_pos.y.clamp(-map_hh, map_hh));
+
+    let grid_pos = snap_to_grid(clamped);
     let grid_cell = world_to_grid(grid_pos);
 
-    // Cek apakah cell sudah terisi
     let occupied = existing_q.iter().any(|s| s.grid_pos == grid_cell);
-    if occupied {
-        bevy::log::warn!("[Build] Cell {:?} sudah terisi", grid_cell);
-        return;
-    }
+    if occupied { return; } // skip diam-diam saat hold
 
-    // Cek dan potong resource
     let cost = selection.cost();
     if !spend_resources(&mut resources, &cost) {
-        bevy::log::warn!("[Build] Resource tidak cukup untuk {}", selection.name());
+        if rmb_just { // hanya warn saat klik pertama, tidak saat hold
+            bevy::log::warn!("[Build] Resource tidak cukup untuk {}", selection.name());
+        }
         return;
     }
 
-    // Spawn struktur sesuai pilihan
     match selection {
         BuildSelection::Wall   => spawn_wall(&mut commands, grid_pos, grid_cell),
         BuildSelection::Turret => spawn_turret(&mut commands, grid_pos, grid_cell),
@@ -302,13 +323,16 @@ fn place_structure(
         BuildSelection::House  => spawn_house(&mut commands, grid_pos, grid_cell, &mut colony),
     }
 
+    // Reset cooldown untuk hold berikutnya
+    build_mode.place_cooldown = HOLD_PLACE_INTERVAL;
+
     bevy::log::info!(
-        "[Build] {} ditempatkan di {:?} | Stone:{} Scrap:{} Crystal:{}",
-        selection.name(), grid_cell,
-        resources.stone, resources.scrap, resources.void_crystal
+        "[Build] {} di {:?} | Stone:{} Scrap:{}",
+        selection.name(), grid_cell, resources.stone, resources.scrap
     );
 }
 
+// ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
 // S1-05: Spawn Wall
 // ---------------------------------------------------------------------------

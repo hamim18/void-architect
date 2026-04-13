@@ -93,7 +93,8 @@ impl Plugin for ColonyPlugin {
             ))
             // Update systems tiap frame
             .add_systems(Update, (
-                npc_wander_ai,          // S2-01: wander untuk Idle/Farmer/Builder
+                npc_wander_ai,
+                    clamp_npc_to_map,          // S2-01: wander untuk Idle/Farmer/Builder
                 npc_farmer_assign,      // S2-02: Farmer → assign ke Farm
                 npc_guard_ai,           // S2-04: Guard patrol + attack
                 update_builder_bonus,   // S2-03: hitung efficiency Builder
@@ -862,5 +863,21 @@ impl SimpleRng {
 
     fn next_f32(&mut self) -> f32 {
         self.next_u32() as f32 / u32::MAX as f32
+    }
+}
+
+
+// ---------------------------------------------------------------------------
+// FIX-03: Clamp NPC (dan semua Dynamic entity) ke dalam batas map
+// ---------------------------------------------------------------------------
+
+pub fn clamp_npc_to_map(
+    mut npc_q: Query<&mut Transform, With<Npc>>,
+) {
+    let hw = crate::plugins::world::MAP_HALF_W - 16.0;
+    let hh = crate::plugins::world::MAP_HALF_H - 16.0;
+    for mut tf in &mut npc_q {
+        tf.translation.x = tf.translation.x.clamp(-hw, hw);
+        tf.translation.y = tf.translation.y.clamp(-hh, hh);
     }
 }

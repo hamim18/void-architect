@@ -8,8 +8,8 @@
 
 ```
 Versi aktif   : v0.1 MVP
-Sprint aktif  : S3 — Progression & Boss (SELESAI) → lanjut S4
-Minggu        : 6 / 8
+Sprint aktif  : S4 — Polish & Ship
+Minggu        : 7 / 8
 Progress MVP  : 39 / 52 tasks selesai (75%)
 Terakhir update: 2026-04-13
 ```
@@ -20,7 +20,7 @@ Terakhir update: 2026-04-13
 
 ```
 Task aktif    : -
-Target hari ini: Mulai S4-01 (Full HUD)
+Target hari ini: S4-01 (Full HUD)
 Blocker       : -
 ```
 
@@ -112,7 +112,7 @@ Blocker       : -
 
 ## 🔄 IN PROGRESS
 
-> Kosong — Sprint 3 SELESAI. Siap mulai S4.
+> Kosong — siap lanjut S4-01.
 
 ---
 
@@ -279,11 +279,21 @@ korup dan tidak bisa di-parse. Dengan atomic rename, file lama tetap valid sampa
 selesai ditulis sempurna.  
 **Ditolak:** Overwrite langsung (risiko korupsi), backup file terpisah (overkill untuk MVP).
 
+### ADR-20: KillChainState — Component di progression.rs, Bukan di components.rs
+**Keputusan:** `KillChainState` didefinisikan di `plugins/progression.rs` sebagai `pub struct`,
+bukan di `components.rs`.  
+**Alasan:** `KillChainState` adalah runtime state perk yang hanya relevan untuk sistem
+progression. Diakses dari `world.rs` sebagai `Option<&KillChainState>` pada player query —
+optional karena player belum tentu punya perk Kill Chain aktif. Menaruhnya di `components.rs`
+akan membuat file itu terlalu besar dengan tipe yang terlalu spesifik ke satu perk.  
+**Pola:** Perk-specific runtime state (BerserkerState, KillChainState, VoidBurn) tinggal di
+`progression.rs`. Component umum (Health, Player, Enemy, dll) di `components.rs`.
+
 ---
 
 ## 🚧 BLOCKER & CATATAN
 
-> Tidak ada blocker aktif. Sprint 4 bisa dimulai.
+> Tidak ada blocker aktif. Siap mulai S4-01.
 >
 > **Catatan untuk S4**:
 > - S4-02 (main menu) dan S4-03/S4-04 (run-end + sanctum UI) sudah ada implementasi
@@ -448,6 +458,40 @@ selesai ditulis sempurna.
 
                Sprint 3 COMPLETE. Semua 10 task done.
                Sprint berikutnya: S4 — Polish & Ship (Minggu 7–8).
+
+[2026-04-13] — Bug fix session pasca-FIX-01~06 — compile errors dari penambahan
+               fitur gameplay (resource respawn, RMB build, map boundaries, XP drops,
+               magnet pickup) yang menyebabkan import mismatch dengan progression.rs S3.
+
+               Error yang difix:
+               - E0432 enemies.rs:14 — `BerserkerState` + `RunEndEvent` di-import dari
+                 progression.rs tapi tidak ada (sudah tidak di-export di versi S3).
+                 Fix: hapus import baris 14 sepenuhnya.
+               - E0432 enemies.rs:9 — `EnemyDied` di-import dari components tapi tidak
+                 dipakai di body enemies.rs. Fix: hapus dari use statement.
+               - E0425 world.rs:306 — `KillChainState` tidak ditemukan di progression.
+                 Fix: tambah `pub struct KillChainState { pub is_active: bool, pub timer: f32 }`
+                 ke progression.rs. ADR-20 ditambahkan.
+               - E0282 world.rs:314 — type inference gagal di closure `|s| s.is_active`.
+                 Fix: tambah explicit type `|s: &KillChainState|`.
+
+               Warning yang difix:
+               - enemies.rs `update_strategy_tracker`: `mut strategy: ResMut` → `strategy: Res`
+                 (hanya baca, tidak perlu mut).
+               - enemies.rs `check_boss_death`: hapus param `mut commands: Commands` yang
+                 tidak dipakai; ganti `tf` → `_tf`.
+               - enemies.rs `spawn_swarm_lord`: hapus `let mut rng = SimpleRng::new(0x1337_CAFE)`
+                 yang tidak dipakai (hive positions sudah hardcoded).
+               - world.rs `respawn_resource_nodes`: hapus param `phase_timer: Res<PhaseTimer>`
+                 yang tidak dipakai.
+
+               File yang dimodifikasi:
+               - plugins/enemies.rs — 4 fix (import, mut warnings, unused var)
+               - plugins/progression.rs — tambah KillChainState struct + ADR-20
+               - plugins/world.rs — fix E0282 + hapus unused param
+
+               ADR baru: ADR-20 (KillChainState di progression.rs, bukan components.rs).
+               Sprint berikutnya tetap: S4 — Polish & Ship.
 ```
 
 ---
